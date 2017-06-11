@@ -1,0 +1,79 @@
+#!/usr/bin/python3
+import os
+import re
+import subprocess
+import argparse
+import zlib
+
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('ep')
+    return parser.parse_args()
+
+
+def scan(directory):
+    for entry in os.scandir(os.path.realpath(os.path.expanduser(directory))):
+        if entry.is_file():
+            yield entry.path
+        elif entry.is_dir():
+            for item in scan(entry.path):
+                yield item
+
+
+def get(paths, regex):
+    for path in paths:
+        if re.match(regex, path, re.I):
+            return path
+    return None
+
+
+def get_many(paths, regex):
+    for path in paths:
+        if re.match(regex, path, re.I):
+            yield path
+
+
+def main():
+    args = parse_args()
+    episode = args.ep
+    if len(episode) != 3:
+        raise ValueError('Ep number must be 3 characters')
+
+    files = list(scan('.'))
+
+    subs_file = get(files, r'.*(?<!\d)%s(?!\d).*\.ass' % episode)
+    video_file = get(files, r'.*source.*(?<!\d)%s(?!\d).*\.avi' % episode)
+    chapters_file = get(files, r'.*chapters.*(?<!\d)%s(?!\d).*\.txt' % episode)
+
+    args = [
+        'mkvmerge',
+        '-o', 'tmp.mkv',
+        video_file
+    ]
+
+    if subs_file:
+        args.extend([subs_file])
+
+    if chapters_file:
+        args.extend(['--chapters', chapters_file])
+
+    for font_path in get_many(files, r'.*/fonts/.*\.[ot]tf'):
+        args.extend([
+            '--attachment-mime-type', 'application/x-truetype-font',
+            '--attach-file', font_path
+        ])
+
+    print('\n'.join(args))
+    print()
+    subprocess.run(args)
+
+    with open('tmp.mkv', 'rb') as handle:
+        checksum = zlib.crc32(handle.read()) & 0xffffffff
+
+    output_file = 'muxed/[OldCastle] Attack no. 1 - %s [%08X].mkv' % (episode, checksum)
+    os.rename('tmp.mkv', output_file)
+
+
+if __name__ == '__main__':
+    main()
