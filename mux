@@ -43,7 +43,7 @@ def main():
     files = list(scan('.'))
 
     subs_file = get(files, r'.*(?<!\d)%s(?!\d).*\.ass' % episode)
-    video_file = get(files, r'.*source.*(?<!\d)%s(?!\d).*\.avi' % episode)
+    video_file = get(files, r'.*source.*(?<!\d)%s(?!\d).*\.(avi|mkv)' % episode)
     chapters_file = get(files, r'.*chapters.*(?<!\d)%s(?!\d).*\.txt' % episode)
 
     args = [
