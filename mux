@@ -42,6 +42,7 @@ def main():
 
     files = list(scan('.'))
 
+    series = os.path.basename(os.getcwd())
     subs_file = get(files, r'.*(?<!\d)%s(?!\d).*\.ass' % episode)
     video_file = get(files, r'.*source.*(?<!\d)%s(?!\d).*\.(avi|mkv)' % episode)
     chapters_file = get(files, r'.*chapters.*(?<!\d)%s(?!\d).*\.txt' % episode)
@@ -71,7 +72,7 @@ def main():
     with open('tmp.mkv', 'rb') as handle:
         checksum = zlib.crc32(handle.read()) & 0xffffffff
 
-    output_file = 'muxed/[OldCastle] Attack no. 1 - %s [%08X].mkv' % (episode, checksum)
+    output_file = 'muxed/[OldCastle] %s - %s [%08X].mkv' % (series, episode, checksum)
     os.rename('tmp.mkv', output_file)
 
 
