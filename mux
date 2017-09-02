@@ -4,6 +4,7 @@ import re
 import subprocess
 import argparse
 import zlib
+from pathlib import Path
 
 
 def parse_args():
@@ -62,23 +63,32 @@ def get_checksum(path):
 
 def main():
     args = parse_args()
-    if len(args.ep) != 3:
-        raise ValueError('Ep number must be 3 characters')
+    episode = args.ep
+    version = args.version
 
     files = list(scan('.'))
 
     series = os.path.basename(os.getcwd())
-    subs_file = get(files, r'.*(?<!\d)%s(?!\d).*\.ass' % args.ep)
-    video_file = get(files, r'.*source.*(?<!\d)%s(?!\d).*\.(avi|mkv)' % args.ep)
-    chapters_file = get(files, r'.*chapters.*(?<!\d)%s(?!\d).*\.txt' % args.ep)
-    font_files = get_many(files, r'.*/fonts/.*\.[ot]tf')
+    subs_file = Path('%s.ass' % episode)
+    video_file = next(p for p in Path('source').iterdir() if p.stem == episode)
+    chapters_file = Path('chapters/%s.txt' % episode)
+    font_files = [p for p in Path('fonts').iterdir()]
+
+    if not subs_file.exists():
+        raise RuntimeError('No subs file found')
+    if not chapters_file.exists():
+        raise RuntimeError('No chapters found')
+    if not video_file:
+        raise RuntimeError('No video file found')
+    if not font_files:
+        raise RuntimeError('No fonts found')
 
     desired_checksum = (
         (get_checksum(video_file) & 0xFFFF0000)
-        | (args.version << 12)
-        | int(args.ep))
-    output_file = 'muxed/[OldCastle] %s - %s [%08X].mkv' % (
-        series, args.ep, desired_checksum)
+        | (version << 12)
+        | int(episode))
+    output_file = Path('muxed/[OldCastle] %s - %s [%08X].mkv' % (
+        series, episode, desired_checksum))
 
     mux(video_file, subs_file, chapters_file, font_files, 'tmp.mkv')
 
