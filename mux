@@ -99,6 +99,7 @@ def main():
 
     print('%08x' % get_checksum('tmp2.mkv'))
 
+    output_file.parent.mkdir(parents=True, exist_ok=True)
     os.unlink('tmp.mkv')
     os.rename('tmp2.mkv', output_file)
 
