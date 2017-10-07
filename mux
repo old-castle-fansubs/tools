@@ -87,7 +87,7 @@ def main():
         (get_checksum(video_file) & 0xFFFF0000)
         | (version << 12)
         | int(episode))
-    output_file = Path('muxed/[OldCastle] %s - %s [%08X].mkv' % (
+    output_file = Path('[OldCastle] %s - %s [%08X].mkv' % (
         series, episode, desired_checksum))
 
     mux(video_file, subs_file, chapters_file, font_files, 'tmp.mkv')
