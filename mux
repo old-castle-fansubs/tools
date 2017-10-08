@@ -61,6 +61,78 @@ def get_checksum(path):
         return zlib.crc32(handle.read()) & 0xFFFFFFFF
 
 
+def get_video_length(path):
+    status = subprocess.run([
+        'ffprobe',
+        '-i', str(path),
+        '-show_entries', 'format=duration',
+        '-v', 'quiet',
+        '-of', 'csv=p=0',
+        '-sexagesimal',
+    ], stdout=subprocess.PIPE)
+    if status.returncode != 0:
+        raise RuntimeError('Error while getting video length')
+    result = re.match(r'(\d+):(\d+):(\d+)\.(\d+)', status.stdout.decode())
+    groups = list(result.groups())
+    groups[-1] = groups[-1][:3]
+    return '{:02d}:{:02d}:{:02d}.{:03d}'.format(*[int(g) for g in groups])
+
+
+def get_chapters(chapters_spec_file, video_length):
+    lines = [
+        line.split(' ', maxsplit=1)
+        for line in chapters_spec_file.read_text().split('\n')
+        if line]
+
+    class Chapter:
+        def __init__(self, start_time, end_time, title, hidden):
+            self.start_time = start_time
+            self.end_time = end_time
+            self.title = title
+            self.hidden = hidden
+
+    for i, (start_time, title) in enumerate(lines):
+        try:
+            end_time = lines[i + 1][0]
+        except IndexError:
+            end_time = video_length
+
+        if title.startswith('#'):
+            continue
+        if title.startswith('$'):
+            yield Chapter(start_time, end_time, title[1:], True)
+        else:
+            yield Chapter(start_time, end_time, title, False)
+
+
+def create_chapters_file(chapters):
+    chapters_file = Path('tmp.xml')
+    with chapters_file.open('w') as handle:
+        handle.write('<?xml version="1.0" encoding="ISO-8859-1"?>\n')
+        handle.write('<!DOCTYPE Chapters SYSTEM "matroskachapters.dtd">\n')
+        handle.write('<Chapters>\n')
+        handle.write('\t<EditionEntry>\n')
+        handle.write('\t\t<EditionFlagDefault>1</EditionFlagDefault>\n')
+        handle.write('\t\t<EditionFlagOrdered>1</EditionFlagOrdered>\n')
+        handle.write('\t\t<EditionFlagHidden>0</EditionFlagHidden>\n')
+        for chapter in chapters:
+            handle.write(
+                '\t\t<ChapterAtom>\n'
+                '\t\t\t<ChapterTimeStart>{start_time}</ChapterTimeStart>\n'
+                '\t\t\t<ChapterTimeEnd>{end_time}</ChapterTimeEnd>\n'
+                '\t\t\t<ChapterFlagEnabled>{enabled:d}</ChapterFlagEnabled>\n'
+                '\t\t\t<ChapterFlagHidden>{hidden:d}</ChapterFlagHidden>\n'
+                '\t\t\t<ChapterDisplay>\n'
+                '\t\t\t\t<ChapterString>{title}</ChapterString>\n'
+                '\t\t\t\t<ChapterLanguage>eng</ChapterLanguage>\n'
+                '\t\t\t</ChapterDisplay>\n'
+                '\t\t</ChapterAtom>\n'
+                .format(enabled=True, **chapter.__dict__))
+        handle.write('\t</EditionEntry>\n')
+        handle.write('</Chapters>')
+    return chapters_file
+
+
 def main():
     args = parse_args()
     episode = args.ep
@@ -71,12 +143,12 @@ def main():
     series = os.path.basename(os.getcwd())
     subs_file = Path('%s.ass' % episode)
     video_file = next(p for p in Path('source').iterdir() if p.stem == episode)
-    chapters_file = Path('chapters/%s.txt' % episode)
+    chapters_spec_file = Path('chapters/%s.txt' % episode)
     font_files = [p for p in Path('fonts').iterdir()]
 
     if not subs_file.exists():
         raise RuntimeError('No subs file found')
-    if not chapters_file.exists():
+    if not chapters_spec_file.exists():
         raise RuntimeError('No chapters found')
     if not video_file:
         raise RuntimeError('No video file found')
@@ -90,14 +162,15 @@ def main():
     output_file = Path('[OldCastle] %s - %s [%08X].mkv' % (
         series, episode, desired_checksum))
 
+    video_length = get_video_length(video_file)
+    chapters = get_chapters(chapters_spec_file, video_length)
+    chapters_file = create_chapters_file(chapters)
     mux(video_file, subs_file, chapters_file, font_files, 'tmp.mkv')
 
     status = subprocess.run([
         'crcmanip', 'patch', 'tmp.mkv', 'tmp2.mkv', '%08x' % desired_checksum])
     if status.returncode != 0:
         raise RuntimeError('Error while patching CRC')
-
-    print('%08x' % get_checksum('tmp2.mkv'))
 
     output_file.parent.mkdir(parents=True, exist_ok=True)
     os.unlink('tmp.mkv')
