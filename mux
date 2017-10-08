@@ -56,11 +56,6 @@ def mux(video_path, subs_path, chapters_path, font_paths, output_path):
         raise RuntimeError('Error while muxing')
 
 
-def get_checksum(path):
-    with open(path, 'rb') as handle:
-        return zlib.crc32(handle.read()) & 0xFFFFFFFF
-
-
 def get_video_length(path):
     status = subprocess.run([
         'ffprobe',
@@ -133,6 +128,15 @@ def create_chapters_file(chapters):
     return chapters_file
 
 
+def change_crc(path, checksum):
+    status = subprocess.run([
+        'crcmanip', 'patch', path, 'tmp.dat', '%08x' % checksum])
+    if status.returncode != 0:
+        raise RuntimeError('Error while patching CRC')
+    os.unlink(path)
+    os.rename('tmp.dat', path)
+
+
 def main():
     args = parse_args()
     episode = args.ep
@@ -155,26 +159,21 @@ def main():
     if not font_files:
         raise RuntimeError('No fonts found')
 
-    desired_checksum = (
-        (get_checksum(video_file) & 0xFFFF0000)
-        | (version << 12)
-        | int(episode))
-    output_file = Path('[OldCastle] %s - %s [%08X].mkv' % (
-        series, episode, desired_checksum))
-
     video_length = get_video_length(video_file)
     chapters = get_chapters(chapters_spec_file, video_length)
     chapters_file = create_chapters_file(chapters)
     mux(video_file, subs_file, chapters_file, font_files, 'tmp.mkv')
 
-    status = subprocess.run([
-        'crcmanip', 'patch', 'tmp.mkv', 'tmp2.mkv', '%08x' % desired_checksum])
-    if status.returncode != 0:
-        raise RuntimeError('Error while patching CRC')
+    checksum = (
+        (zlib.crc32((series + ' ' + version).encode()) & 0xFFFF0000)
+        | (version << 12)
+        | int(episode))
+    change_crc('tmp.mkv', checksum)
 
+    output_file = Path('[OldCastle] %s - %s [%08X].mkv' % (
+        series, episode, checksum))
     output_file.parent.mkdir(parents=True, exist_ok=True)
-    os.unlink('tmp.mkv')
-    os.rename('tmp2.mkv', output_file)
+    os.rename('tmp.mkv', output_file)
 
 
 if __name__ == '__main__':
