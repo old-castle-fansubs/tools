@@ -124,7 +124,7 @@ def main():
     series = os.path.basename(os.getcwd())
     source_subs_file = Path('%s.ass' % episode)
     source_video_file = next(
-        p for p in Path('source').iterdir() if p.stem == episode)
+        (p for p in Path('source').iterdir() if p.stem == episode), None)
     source_chapters_file = Path('chapters/%s.txt' % episode)
     source_font_files = [p for p in Path('fonts').iterdir()]
 
