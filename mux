@@ -14,28 +14,6 @@ def parse_args():
     return parser.parse_args()
 
 
-def scan(directory):
-    for entry in os.scandir(os.path.realpath(os.path.expanduser(directory))):
-        if entry.is_file():
-            yield entry.path
-        elif entry.is_dir():
-            for item in scan(entry.path):
-                yield item
-
-
-def get(paths, regex):
-    for path in paths:
-        if re.match(regex, path, re.I):
-            return path
-    return None
-
-
-def get_many(paths, regex):
-    for path in paths:
-        if re.match(regex, path, re.I):
-            yield path
-
-
 def mux(video_path, subs_path, chapters_path, font_paths, output_path):
     mux_args = ['mkvmerge', '-o', output_path, video_path]
 
@@ -129,12 +107,13 @@ def create_chapters_file(chapters):
 
 
 def change_crc(path, checksum):
+    tmp_file = Path('tmp.dat')
     status = subprocess.run([
-        'crcmanip', 'patch', path, 'tmp.dat', '%08x' % checksum])
+        'crcmanip', 'patch', path, tmp_file, '%08x' % checksum])
     if status.returncode != 0:
         raise RuntimeError('Error while patching CRC')
-    os.unlink(path)
-    os.rename('tmp.dat', path)
+    path.unlink()
+    tmp_file.rename(path)
 
 
 def main():
@@ -142,38 +121,42 @@ def main():
     episode = args.ep
     version = args.version
 
-    files = list(scan('.'))
-
     series = os.path.basename(os.getcwd())
-    subs_file = Path('%s.ass' % episode)
-    video_file = next(p for p in Path('source').iterdir() if p.stem == episode)
-    chapters_spec_file = Path('chapters/%s.txt' % episode)
-    font_files = [p for p in Path('fonts').iterdir()]
+    source_subs_file = Path('%s.ass' % episode)
+    source_video_file = next(
+        p for p in Path('source').iterdir() if p.stem == episode)
+    source_chapters_file = Path('chapters/%s.txt' % episode)
+    source_font_files = [p for p in Path('fonts').iterdir()]
 
-    if not subs_file.exists():
+    if not source_subs_file.exists():
         raise RuntimeError('No subs file found')
-    if not chapters_spec_file.exists():
+    if not source_chapters_file.exists():
         raise RuntimeError('No chapters found')
-    if not video_file:
+    if not source_video_file:
         raise RuntimeError('No video file found')
-    if not font_files:
+    if not source_font_files:
         raise RuntimeError('No fonts found')
 
-    video_length = get_video_length(video_file)
-    chapters = get_chapters(chapters_spec_file, video_length)
-    chapters_file = create_chapters_file(chapters)
-    mux(video_file, subs_file, chapters_file, font_files, 'tmp.mkv')
-
     checksum = (
-        (zlib.crc32((series + ' ' + version).encode()) & 0xFFFF0000)
+        (zlib.crc32(f'{series} {episode}'.encode()) & 0xFFFF0000)
         | (version << 12)
         | int(episode))
-    change_crc('tmp.mkv', checksum)
 
-    output_file = Path('[OldCastle] %s - %s [%08X].mkv' % (
-        series, episode, checksum))
-    output_file.parent.mkdir(parents=True, exist_ok=True)
-    os.rename('tmp.mkv', output_file)
+    target_video_file = Path(
+        f'[OldCastle] {series} - {episode} [{checksum:08X}].mkv')
+
+    video_length = get_video_length(source_video_file)
+    chapters = get_chapters(source_chapters_file, video_length)
+    target_chapters_file = create_chapters_file(chapters)
+    mux(
+        source_video_file,
+        source_subs_file,
+        target_chapters_file,
+        source_font_files,
+        target_video_file)
+    target_chapters_file.unlink()
+
+    change_crc(target_video_file, checksum)
 
 
 if __name__ == '__main__':
