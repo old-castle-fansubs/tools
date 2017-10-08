@@ -2,40 +2,82 @@
 import argparse
 import subprocess
 from pathlib import Path
+import humanfriendly
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--input', type=Path)
     parser.add_argument('-o', '--output', type=Path)
+    parser.add_argument(
+        '-t',
+        '--target-size',
+        required=True,
+        type=lambda x: humanfriendly.parse_size(x, binary=True))
     return parser.parse_args()
 
 
-def encode(input_path, output_path):
-    # Mudabone:
-    # --level 4.1 --preset slow --tune animation --crf 18.0 --bframes 3 --ref 9
-    # --merange 24 --subme 9 --trellis 2
+def get_video_length(path):
+    status = subprocess.run([
+        'ffprobe',
+        '-i', str(path),
+        '-show_entries', 'format=duration',
+        '-v', 'quiet',
+        '-of', 'csv=p=0',
+    ], stdout=subprocess.PIPE)
+    if status.returncode != 0:
+        raise RuntimeError('Error while getting video length')
+    return float(status.stdout.decode())
+
+
+def encode(input_path, output_path, target_size):
+    b_to_kbit = 1024 / 8
+    audio_bitrate = 128
+    video_length = get_video_length(input_path)
+    video_bitrate = target_size / b_to_kbit / video_length - audio_bitrate
 
     args = [
         'ffmpeg',
+        '-y',
         '-i', input_path,
         '-c:v', 'libx264',
-        '-preset', 'slower',
+        '-preset', 'slow',
         '-tune', 'animation',
-        '-crf', '23',
-        '-psy-rd', '1.0:0.2',
-        '-c:a', 'aac',
+        '-b:v', f'{video_bitrate:0f}k',
+        '-pass', '1',
+        '-an',
+        '-f', 'rawvideo',
+        '/dev/null',
+    ]
+    status = subprocess.run(args)
+    if status.returncode != 0:
+        raise RuntimeError('Error while encoding')
+
+    args = [
+        'ffmpeg',
         '-y',
+        '-i', input_path,
+        '-c:v', 'libx264',
+        '-preset', 'slow',
+        '-tune', 'animation',
+        '-b:v', f'{video_bitrate:0f}k',
+        '-pass', '2',
+        '-c:a', 'aac',
+        '-b:a', f'{audio_bitrate:0f}k',
         output_path,
     ]
     status = subprocess.run(args)
     if status.returncode != 0:
         raise RuntimeError('Error while encoding')
 
+    for path in list(Path('.').iterdir()):
+        if 'ffmpeg2pass' in path.stem:
+            path.unlink()
+
 
 def main():
     args = parse_args()
-    encode(args.input, args.output)
+    encode(args.input, args.output, args.target_size)
 
 
 if __name__ == '__main__':
