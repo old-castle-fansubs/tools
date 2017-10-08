@@ -1,0 +1,38 @@
+#!/usr/bin/python3
+import argparse
+import subprocess
+from pathlib import Path
+
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-i', '--input', type=Path)
+    parser.add_argument('-o', '--output', type=Path)
+    return parser.parse_args()
+
+
+def encode(input_path, output_path):
+    args = [
+        'ffmpeg',
+        '-i', input_path,
+        '-c:v', 'libx264',
+        '-preset', 'slower',
+        '-tune', 'animation',
+        '-crf', '23',
+        '-psy-rd', '1.0:0.2',
+        '-c:a', 'aac',
+        '-y',
+        output_path,
+    ]
+    status = subprocess.run(args)
+    if status.returncode != 0:
+        raise RuntimeError('Error while encoding')
+
+
+def main():
+    args = parse_args()
+    encode(args.input, args.output)
+
+
+if __name__ == '__main__':
+    main()
