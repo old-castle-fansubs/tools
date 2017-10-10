@@ -5,6 +5,15 @@ import subprocess
 import argparse
 import zlib
 from pathlib import Path
+import pysubs2
+
+
+class Chapter:
+    def __init__(self, start_time, end_time, title, hidden):
+        self.start_time = start_time
+        self.end_time = end_time
+        self.title = title
+        self.hidden = hidden
 
 
 def parse_args():
@@ -51,18 +60,33 @@ def get_video_length(path):
     return '{:02d}:{:02d}:{:02d}.{:03d}'.format(*[int(g) for g in groups])
 
 
-def get_chapters(chapters_spec_file, video_length):
+def get_chapters_legacy(chapters_spec_file, video_length):
     lines = [
         line.split(' ', maxsplit=1)
         for line in chapters_spec_file.read_text().split('\n')
         if line]
 
-    class Chapter:
-        def __init__(self, start_time, end_time, title, hidden):
-            self.start_time = start_time
-            self.end_time = end_time
-            self.title = title
-            self.hidden = hidden
+    for i, (start_time, title) in enumerate(lines):
+        try:
+            end_time = lines[i + 1][0]
+        except IndexError:
+            end_time = video_length
+
+        if title.startswith('#'):
+            continue
+        if title.startswith('$'):
+            yield Chapter(start_time, end_time, title[1:], True)
+        else:
+            yield Chapter(start_time, end_time, title, False)
+
+
+def get_chapters_new(subs_file, video_length):
+    lines = []
+    for line in pysubs2.SSAFile.load(subs_file):
+        if line.name == 'Chapter':
+            lines.append((
+                pysubs2.time.ms_to_str(line.start, fractions=True),
+                line.text))
 
     for i, (start_time, title) in enumerate(lines):
         try:
@@ -130,8 +154,6 @@ def main():
 
     if not source_subs_file.exists():
         raise RuntimeError('No subs file found')
-    if not source_chapters_file.exists():
-        raise RuntimeError('No chapters found')
     if not source_video_file:
         raise RuntimeError('No video file found')
     if not source_font_files:
@@ -146,7 +168,10 @@ def main():
         f'[OldCastle] {series} - {episode} [{checksum:08X}].mkv')
 
     video_length = get_video_length(source_video_file)
-    chapters = get_chapters(source_chapters_file, video_length)
+    if source_chapters_file.exists():
+        chapters = get_chapters_legacy(source_chapters_file, video_length)
+    else:
+        chapters = get_chapters_new(source_subs_file, video_length)
     target_chapters_file = create_chapters_file(chapters)
     mux(
         source_video_file,
