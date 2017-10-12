@@ -170,8 +170,7 @@ def publish_torrent_nyaa(
                 print('Upload failed', errors)
                 exit(1)
             else:
-                print("[Uploaded] {url} - '{name}'".format(**response))
-                print(response['magnet'])
+                print(response['url'])
 
 
 def publish_torrent_anidex(
