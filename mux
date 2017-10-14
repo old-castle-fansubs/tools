@@ -43,6 +43,10 @@ def mux(video_path, subs_path, chapters_path, font_paths, output_path):
         raise RuntimeError('Error while muxing')
 
 
+def get_title(subs_file):
+    return dict(pysubs2.SSAFile.load(subs_file).info)['Title']
+
+
 def get_video_length(path):
     status = subprocess.run([
         'ffprobe',
@@ -145,7 +149,6 @@ def main():
     episode = args.ep
     version = args.version
 
-    series = os.path.basename(os.getcwd())
     source_subs_file = Path('%s.ass' % episode)
     source_video_file = next(
         (p for p in Path('source').iterdir() if p.stem == episode), None)
@@ -159,13 +162,12 @@ def main():
     if not source_font_files:
         raise RuntimeError('No fonts found')
 
+    title = get_title(source_subs_file)
     checksum = (
-        (zlib.crc32(f'{series} {episode}'.encode()) & 0xFFFF0000)
+        (zlib.crc32(title.encode()) & 0xFFFF0000)
         | (version << 12)
         | int(episode))
-
-    target_video_file = Path(
-        f'[OldCastle] {series} - {episode} [{checksum:08X}].mkv')
+    target_video_file = Path(f'[OldCastle] {title} [{checksum:08X}].mkv')
 
     video_length = get_video_length(source_video_file)
     if source_chapters_file.exists():
