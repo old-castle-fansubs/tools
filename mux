@@ -166,10 +166,12 @@ def main():
         raise RuntimeError('No fonts found')
 
     title = get_title(source_subs_file)
-    checksum = (
-        (zlib.crc32(title.encode()) & 0xFFFF0000)
-        | (version << 12)
-        | int(episode))
+    checksum = zlib.crc32(title.encode()) & 0xFFFF0000
+    checksum |= version << 12
+    try:
+        checksum |= int(episode)
+    except ValueError:
+        pass
     target_video_file = Path(f'[OldCastle] {title} [{checksum:08X}].mkv')
 
     video_length = get_video_length(source_video_file)
