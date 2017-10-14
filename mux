@@ -107,6 +107,9 @@ def get_chapters_new(subs_file, video_length):
 
 
 def create_chapters_file(chapters):
+    chapters = list(chapters)
+    if not chapters:
+        return None
     chapters_file = Path('tmp.xml')
     with chapters_file.open('w') as handle:
         handle.write('<?xml version="1.0" encoding="ISO-8859-1"?>\n')
@@ -181,7 +184,8 @@ def main():
         target_chapters_file,
         source_font_files,
         target_video_file)
-    target_chapters_file.unlink()
+    if target_video_file.exists():
+        target_chapters_file.unlink()
 
     change_crc(target_video_file, checksum)
 
