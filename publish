@@ -125,6 +125,12 @@ def build_torrent(data_path, output_dir):
     return torrent_path
 
 
+def submit_to_transmission(torrent_path):
+    result = subprocess.run(['transmission-remote', '-a', torrent_path])
+    if result.returncode != 0:
+        exit(1)
+
+
 def publish_torrent_nyaa(
         user,
         password,
@@ -201,6 +207,8 @@ def publish_torrent_anidex(
 def main():
     args = parse_args()
     torrent_path = build_torrent(args.path, args.output_dir)
+
+    submit_to_transmission(torrent_path)
 
     publish_torrent_nyaa(
         args.nyaasi_user,
