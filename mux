@@ -1,5 +1,4 @@
 #!/usr/bin/python3
-import os
 import re
 import subprocess
 import argparse
@@ -7,9 +6,17 @@ import zlib
 from pathlib import Path
 from collections import namedtuple
 import pysubs2
+import ass_tag_parser
+import fontTools.ttLib as font_tools
 
 
+StyleInfo = namedtuple('StyleInfo', ('family', 'bold', 'italic'))
 Chapter = namedtuple('Chapter', ('start_time', 'end_time', 'title', 'hidden'))
+
+TT_NAME_ID_FONT_FAMILY = 1
+TT_NAME_ID_FULL_NAME = 4
+TT_NAME_ID_TYPOGRAPHIC_FAMILY = 16
+TT_PLATFORM_MICROSOFT = 3
 
 
 def parse_args():
@@ -148,6 +155,93 @@ def change_crc(path, checksum):
     tmp_path.rename(path)
 
 
+def get_used_font_styles(subs_path):
+    subs = pysubs2.SSAFile.load(subs_path)
+
+    style_name_to_style_info = {
+        style_name: StyleInfo(style.fontname, style.bold, style.italic)
+        for style_name, style in subs.styles.items()
+    }
+
+    used_font_styles = set()
+    for i, line in enumerate(subs):
+        if line.is_comment:
+            continue
+        try:
+            used_font_styles.add(style_name_to_style_info[line.style])
+        except KeyError as ex:
+            print(f'Invalid style at line #{i + 1}: {line.style}')
+
+        bold = style_name_to_style_info[line.style].bold
+        italic = style_name_to_style_info[line.style].italic
+
+        result = ass_tag_parser.parse_ass(line.text)
+        for chunk in result:
+            if chunk['type'] != 'tags':
+                continue
+            for ass_tag in chunk['children']:
+                if ass_tag['type'] == 'bold':
+                    if 'enabled' in ass_tag:
+                        bold = ass_tag['enabled']
+                    else:
+                        bold = ass_tag['weight'] > 100
+                elif ass_tag['type'] == 'italics':
+                    italic = ass_tag['enabled']
+
+                elif ass_tag['type'] == 'font-name':
+                    used_font_styles.add(
+                        StyleInfo(ass_tag['name'], bold, italic))
+    return used_font_styles
+
+
+def filter_fonts(used_font_styles, font_paths):
+    def is_bold(font):
+        return True if font['OS/2'].fsSelection & (1 << 5) else False
+
+    def is_italic(font):
+        return True if font['OS/2'].fsSelection & 1 else False
+
+    def get_font_names(font):
+        for record in font['name'].names:
+            if record.nameID in {
+                    TT_NAME_ID_FONT_FAMILY,
+                    TT_NAME_ID_FULL_NAME,
+                    TT_NAME_ID_TYPOGRAPHIC_FAMILY} \
+                and record.platformID == TT_PLATFORM_MICROSOFT:
+                yield record.string.decode('utf-16-be')
+
+    print('Used font styles:')
+
+    ret = set()
+    for style in sorted(used_font_styles, key=lambda s: s.family):
+        candidates = []
+        for font_path in font_paths:
+            font = font_tools.TTFont(font_path)
+            font_path_names = get_font_names(font)
+            if style.family.lower() in [n.lower() for n in font_path_names]:
+                candidates.append((
+                    (is_bold(font) == style.bold) +
+                    (is_italic(font) == style.italic),
+                    font_path))
+        candidates.sort(key=lambda i: -i[0])
+
+        print(
+            '{}{} {:40s} '.format(
+                'B' if style.bold else ' ',
+                'I' if style.italic else ' ',
+                style.family),
+            end='')
+
+        if candidates:
+            selected_font_path = candidates[0][1]
+            ret.add(selected_font_path)
+            print('"{}"'.format(selected_font_path.resolve()))
+        else:
+            print('-')
+
+    return ret
+
+
 def main():
     args = parse_args()
     episode = args.ep
@@ -157,14 +251,17 @@ def main():
     source_video_path = next(
         (p for p in Path('source').iterdir() if p.stem == episode), None)
     source_chapters_path = Path('chapters/%s.txt' % episode)
-    source_font_path = [p for p in Path('fonts').iterdir()]
+    source_font_paths = [p for p in Path('fonts').iterdir()]
 
     if not source_subs_path.exists():
         raise RuntimeError('No subs file found')
     if not source_video_path:
         raise RuntimeError('No video file found')
-    if not source_font_path:
+    if not source_font_paths:
         raise RuntimeError('No fonts found')
+
+    used_font_styles = get_used_font_styles(source_subs_path)
+    target_font_paths = filter_fonts(used_font_styles, source_font_paths)
 
     title = get_title(source_subs_path)
     checksum = zlib.crc32(title.encode()) & 0xFFFF0000
@@ -185,7 +282,7 @@ def main():
         source_video_path,
         source_subs_path,
         target_chapters_path,
-        source_font_path,
+        target_font_paths,
         target_video_path)
     if target_video_path.exists():
         target_chapters_path.unlink()
