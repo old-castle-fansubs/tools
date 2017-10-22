@@ -284,7 +284,7 @@ def main():
         target_chapters_path,
         target_font_paths,
         target_video_path)
-    if target_video_path.exists():
+    if target_chapters_path and target_chapters_path.exists():
         target_chapters_path.unlink()
 
     change_crc(target_video_path, checksum)
