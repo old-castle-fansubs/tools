@@ -5,15 +5,11 @@ import subprocess
 import argparse
 import zlib
 from pathlib import Path
+from collections import namedtuple
 import pysubs2
 
 
-class Chapter:
-    def __init__(self, start_time, end_time, title, hidden):
-        self.start_time = start_time
-        self.end_time = end_time
-        self.title = title
-        self.hidden = hidden
+Chapter = namedtuple('Chapter', ('start_time', 'end_time', 'title', 'hidden'))
 
 
 def parse_args():
@@ -131,7 +127,12 @@ def create_chapters_file(chapters):
                 '\t\t\t\t<ChapterLanguage>eng</ChapterLanguage>\n'
                 '\t\t\t</ChapterDisplay>\n'
                 '\t\t</ChapterAtom>\n'
-                .format(enabled=True, **chapter.__dict__))
+                .format(
+                    enabled=True,
+                    start_time=chapter.start_time,
+                    end_time=chapter.end_time,
+                    title=chapter.title,
+                    hidden=chapter.hidden))
         handle.write('\t</EditionEntry>\n')
         handle.write('</Chapters>')
     return chapters_file
