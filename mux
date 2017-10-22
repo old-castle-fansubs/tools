@@ -39,8 +39,8 @@ def mux(video_path, subs_path, chapters_path, font_paths, output_path):
         raise RuntimeError('Error while muxing')
 
 
-def get_title(subs_file):
-    return dict(pysubs2.SSAFile.load(subs_file).info)['Title']
+def get_title(subs_path):
+    return dict(pysubs2.SSAFile.load(subs_path).info)['Title']
 
 
 def get_video_length(path):
@@ -60,10 +60,10 @@ def get_video_length(path):
     return '{:02d}:{:02d}:{:02d}.{:03d}'.format(*[int(g) for g in groups])
 
 
-def get_chapters_legacy(chapters_spec_file, video_length):
+def get_chapters_legacy(chapters_spec_path, video_length):
     lines = [
         line.split(' ', maxsplit=1)
-        for line in chapters_spec_file.read_text().split('\n')
+        for line in chapters_spec_path.read_text().split('\n')
         if line]
 
     for i, (start_time, title) in enumerate(lines):
@@ -80,9 +80,9 @@ def get_chapters_legacy(chapters_spec_file, video_length):
             yield Chapter(start_time, end_time, title, False)
 
 
-def get_chapters_new(subs_file, video_length):
+def get_chapters_new(subs_path, video_length):
     lines = []
-    for line in pysubs2.SSAFile.load(subs_file):
+    for line in pysubs2.SSAFile.load(subs_path):
         if line.name == 'Chapter':
             lines.append((
                 pysubs2.time.ms_to_str(line.start, fractions=True),
@@ -106,8 +106,8 @@ def create_chapters_file(chapters):
     chapters = list(chapters)
     if not chapters:
         return None
-    chapters_file = Path('tmp.xml')
-    with chapters_file.open('w') as handle:
+    chapters_path = Path('tmp.xml')
+    with chapters_path.open('w') as handle:
         handle.write('<?xml version="1.0" encoding="ISO-8859-1"?>\n')
         handle.write('<!DOCTYPE Chapters SYSTEM "matroskachapters.dtd">\n')
         handle.write('<Chapters>\n')
@@ -135,17 +135,17 @@ def create_chapters_file(chapters):
                     hidden=chapter.hidden))
         handle.write('\t</EditionEntry>\n')
         handle.write('</Chapters>')
-    return chapters_file
+    return chapters_path
 
 
 def change_crc(path, checksum):
-    tmp_file = Path('tmp.dat')
+    tmp_path = Path('tmp.dat')
     status = subprocess.run([
-        'crcmanip', 'patch', path, tmp_file, '%08x' % checksum])
+        'crcmanip', 'patch', path, tmp_path, '%08x' % checksum])
     if status.returncode != 0:
         raise RuntimeError('Error while patching CRC')
     path.unlink()
-    tmp_file.rename(path)
+    tmp_path.rename(path)
 
 
 def main():
@@ -153,44 +153,44 @@ def main():
     episode = args.ep
     version = args.version
 
-    source_subs_file = Path('%s.ass' % episode)
-    source_video_file = next(
+    source_subs_path = Path('%s.ass' % episode)
+    source_video_path = next(
         (p for p in Path('source').iterdir() if p.stem == episode), None)
-    source_chapters_file = Path('chapters/%s.txt' % episode)
-    source_font_files = [p for p in Path('fonts').iterdir()]
+    source_chapters_path = Path('chapters/%s.txt' % episode)
+    source_font_path = [p for p in Path('fonts').iterdir()]
 
-    if not source_subs_file.exists():
+    if not source_subs_path.exists():
         raise RuntimeError('No subs file found')
-    if not source_video_file:
+    if not source_video_path:
         raise RuntimeError('No video file found')
-    if not source_font_files:
+    if not source_font_path:
         raise RuntimeError('No fonts found')
 
-    title = get_title(source_subs_file)
+    title = get_title(source_subs_path)
     checksum = zlib.crc32(title.encode()) & 0xFFFF0000
     checksum |= version << 12
     try:
         checksum |= int(episode)
     except ValueError:
         pass
-    target_video_file = Path(f'[OldCastle] {title} [{checksum:08X}].mkv')
+    target_video_path = Path(f'[OldCastle] {title} [{checksum:08X}].mkv')
 
-    video_length = get_video_length(source_video_file)
-    if source_chapters_file.exists():
-        chapters = get_chapters_legacy(source_chapters_file, video_length)
+    video_length = get_video_length(source_video_path)
+    if source_chapters_path.exists():
+        chapters = get_chapters_legacy(source_chapters_path, video_length)
     else:
-        chapters = get_chapters_new(source_subs_file, video_length)
-    target_chapters_file = create_chapters_file(chapters)
+        chapters = get_chapters_new(source_subs_path, video_length)
+    target_chapters_path = create_chapters_file(chapters)
     mux(
-        source_video_file,
-        source_subs_file,
-        target_chapters_file,
-        source_font_files,
-        target_video_file)
-    if target_video_file.exists():
-        target_chapters_file.unlink()
+        source_video_path,
+        source_subs_path,
+        target_chapters_path,
+        source_font_path,
+        target_video_path)
+    if target_video_path.exists():
+        target_chapters_path.unlink()
 
-    change_crc(target_video_file, checksum)
+    change_crc(target_video_path, checksum)
 
 
 if __name__ == '__main__':
