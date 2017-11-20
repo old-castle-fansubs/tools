@@ -91,9 +91,13 @@ def get_chapters_new(subs_path, video_length):
     lines = []
     for line in pysubs2.SSAFile.load(subs_path):
         if line.name == 'Chapter':
+            title = ''.join(
+                chunk['text']
+                for chunk in ass_tag_parser.parse_ass(line.text)
+                if chunk['type'] == 'text')
             lines.append((
                 pysubs2.time.ms_to_str(line.start, fractions=True),
-                line.text))
+                title))
 
     for i, (start_time, title) in enumerate(lines):
         try:
