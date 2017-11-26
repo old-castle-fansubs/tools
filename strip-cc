@@ -36,6 +36,7 @@ def main():
             line = re.sub('\(.*\)', '', line)
 
             # punctuation
+            line = re.sub('➡', '', line)
             line = re.sub('[＜＞]', '', line)
             line = re.sub('｡', '。', line)
             line = re.sub('([…！？])。', r'\1', line)
