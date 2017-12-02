@@ -91,27 +91,7 @@ def get_video_length(path):
     return '{:02d}:{:02d}:{:02d}.{:03d}'.format(*[int(g) for g in groups])
 
 
-def get_chapters_legacy(chapters_spec_path, video_length):
-    lines = [
-        line.split(' ', maxsplit=1)
-        for line in chapters_spec_path.read_text().split('\n')
-        if line]
-
-    for i, (start_time, title) in enumerate(lines):
-        try:
-            end_time = lines[i + 1][0]
-        except IndexError:
-            end_time = video_length
-
-        if title.startswith('#'):
-            continue
-        if title.startswith('$'):
-            yield Chapter(start_time, end_time, title[1:], True)
-        else:
-            yield Chapter(start_time, end_time, title, False)
-
-
-def get_chapters_new(subs_path, video_length):
+def get_chapters(subs_path, video_length):
     lines = []
     for line in pysubs2.SSAFile.load(subs_path):
         if line.name == 'Chapter':
@@ -278,7 +258,6 @@ def main():
     source_subs_path = Path('%s.ass' % episode)
     source_video_path = next(
         (p for p in Path('source').iterdir() if p.stem == episode), None)
-    source_chapters_path = Path('chapters/%s.txt' % episode)
 
     source_font_paths = []
     for directory in FONT_DIRS:
@@ -306,10 +285,7 @@ def main():
     target_video_path = Path(f'[OldCastle] {title} [{checksum:08X}].mkv')
 
     video_length = get_video_length(source_video_path)
-    if source_chapters_path.exists():
-        chapters = get_chapters_legacy(source_chapters_path, video_length)
-    else:
-        chapters = get_chapters_new(source_subs_path, video_length)
+    chapters = get_chapters(source_subs_path, video_length)
     target_chapters_path = create_chapters_file(chapters)
     mux(
         source_video_path,
