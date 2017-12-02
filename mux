@@ -2,23 +2,45 @@
 import re
 import subprocess
 import argparse
+import shelve
 import zlib
 from pathlib import Path
 from collections import namedtuple
+
 import pysubs2
 import ass_tag_parser
+import xdg
 import fontTools.ttLib as font_tools
 
-
-StyleInfo = namedtuple('StyleInfo', ('family', 'bold', 'italic'))
-Chapter = namedtuple('Chapter', ('start_time', 'end_time', 'title', 'hidden'))
 
 TT_NAME_ID_FONT_FAMILY = 1
 TT_NAME_ID_FULL_NAME = 4
 TT_NAME_ID_TYPOGRAPHIC_FAMILY = 16
 TT_PLATFORM_MICROSOFT = 3
 
+SHELVE_PATH = Path(xdg.XDG_CACHE_HOME) / 'oc-tools.dat'
 FONT_DIRS = ['fonts', '~/.local/share/fonts']
+
+
+StyleInfo = namedtuple('StyleInfo', ('family', 'bold', 'italic'))
+Chapter = namedtuple('Chapter', ('start_time', 'end_time', 'title', 'hidden'))
+
+
+class Font:
+    def __init__(self, font_path):
+        font = font_tools.TTFont(font_path)
+
+        self.names = []
+        self.is_bold = bool(font['OS/2'].fsSelection & (1 << 5))
+        self.is_italic = bool(font['OS/2'].fsSelection & 1)
+
+        for record in font['name'].names:
+            if record.nameID in {
+                    TT_NAME_ID_FONT_FAMILY,
+                    TT_NAME_ID_FULL_NAME,
+                    TT_NAME_ID_TYPOGRAPHIC_FAMILY} \
+                and record.platformID == TT_PLATFORM_MICROSOFT:
+                self.names.append(record.string.decode('utf-16-be'))
 
 
 def parse_args():
@@ -200,42 +222,35 @@ def get_used_font_styles(subs_path):
     return used_font_styles
 
 
+def get_fonts(font_paths):
+    with shelve.open(str(SHELVE_PATH)) as cache:
+        fonts = {}
+        for font_path in font_paths:
+            cache_key = 'font-' + str(font_path.resolve())
+            font = cache.get(cache_key, None)
+            if not font:
+                try:
+                    font = Font(font_path)
+                except Exception:
+                    continue
+                cache[cache_key] = font
+            fonts[font_path] = font
+        return fonts
+
+
 def filter_fonts(used_font_styles, font_paths):
-    def is_bold(font):
-        return True if font['OS/2'].fsSelection & (1 << 5) else False
-
-    def is_italic(font):
-        return True if font['OS/2'].fsSelection & 1 else False
-
-    def get_font_names(font):
-        for record in font['name'].names:
-            if record.nameID in {
-                    TT_NAME_ID_FONT_FAMILY,
-                    TT_NAME_ID_FULL_NAME,
-                    TT_NAME_ID_TYPOGRAPHIC_FAMILY} \
-                and record.platformID == TT_PLATFORM_MICROSOFT:
-                yield record.string.decode('utf-16-be')
-
     print('Used font styles:')
-
-    fonts = {}
-    for font_path in font_paths:
-        try:
-            font = font_tools.TTFont(font_path)
-        except Exception:
-            continue
-        fonts[font_path] = font
+    fonts = get_fonts(font_paths)
 
     ret = set()
     for style in sorted(used_font_styles, key=lambda s: s.family):
         candidates = []
         candidates.sort(key=lambda i: -i[0])
         for font_path, font in fonts.items():
-            font_path_names = get_font_names(font)
-            if style.family.lower() in [n.lower() for n in font_path_names]:
+            if style.family.lower() in [n.lower() for n in font.names]:
                 candidates.append((
-                    (is_bold(font) == style.bold) +
-                    (is_italic(font) == style.italic),
+                    (font.is_bold == style.bold) +
+                    (font.is_italic == style.italic),
                     font_path))
 
         print(
