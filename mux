@@ -94,7 +94,7 @@ def get_video_length(path):
 def get_chapters(subs_path, video_length):
     lines = []
     for line in pysubs2.SSAFile.load(subs_path):
-        if line.name == 'Chapter':
+        if line.name == '[chapter]':
             title = ''.join(
                 chunk['text']
                 for chunk in ass_tag_parser.parse_ass(line.text)

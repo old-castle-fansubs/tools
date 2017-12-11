@@ -82,7 +82,7 @@ def main():
                 if key in other_subs.info:
                     subs.info[key] = other_subs.info[key]
             for line in other_subs:
-                if line.name.lower() in {'chapter', 'title'} \
+                if line.name.startswith('[') \
                 or line.style.lower().startswith((
                         'opening', 'ending', 'op', 'ed', 'lyrics', 'karaoke')):
                     subs.append(line)
