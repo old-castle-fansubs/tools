@@ -19,7 +19,12 @@ TT_NAME_ID_TYPOGRAPHIC_FAMILY = 16
 TT_PLATFORM_MICROSOFT = 3
 
 SHELVE_PATH = Path(xdg.XDG_CACHE_HOME) / 'oc-tools.dat'
-FONT_DIRS = ['fonts', '~/.local/share/fonts']
+FONT_DIRS = [
+    'fonts',
+    '~/.local/share/fonts',
+    '/usr/share/fonts/TTF',
+    '/usr/share/fonts/OTF',
+]
 
 
 StyleInfo = namedtuple('StyleInfo', ('family', 'bold', 'italic'))
