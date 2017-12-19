@@ -236,13 +236,13 @@ def filter_fonts(used_font_styles, font_paths):
     ret = set()
     for style in sorted(used_font_styles, key=lambda s: s.family):
         candidates = []
-        candidates.sort(key=lambda i: -i[0])
         for font_path, font in fonts.items():
             if style.family.lower() in [n.lower() for n in font.names]:
-                candidates.append((
+                weight = (
                     (font.is_bold == style.bold) +
-                    (font.is_italic == style.italic),
-                    font_path))
+                    (font.is_italic == style.italic))
+                candidates.append((weight, font_path))
+        candidates.sort(key=lambda i: -i[0])
 
         print(
             '{}{} {:40s} '.format(
