@@ -52,7 +52,7 @@ def extract_chapters(source_path):
         end = chapter_atom.xpath('string(.//ChapterTimeEnd)')
         yield pysubs2.SSAEvent(
             start=str_to_ms(start),
-            end=str_to_ms(end),
+            end=str_to_ms(start),
             text=title,
             name='Chapter',
             type='Comment')
