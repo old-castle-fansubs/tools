@@ -204,6 +204,12 @@ def get_used_font_styles(subs_path):
                 elif ass_tag['type'] == 'font-name':
                     used_font_styles.add(
                         StyleInfo(ass_tag['name'], bold, italic))
+
+        used_font_styles.add(
+            StyleInfo(style_name_to_style_info[line.style].family,
+            bold,
+            italic))
+
     return used_font_styles
 
 
