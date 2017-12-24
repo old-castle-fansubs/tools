@@ -54,7 +54,7 @@ def extract_chapters(source_path):
             start=str_to_ms(start),
             end=str_to_ms(start),
             text=title,
-            name='Chapter',
+            name='[chapter]',
             type='Comment')
 
 
