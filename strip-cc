@@ -32,14 +32,11 @@ def main():
                 text += node['text']
 
         for line in text.split('\\N'):
-            # actors
-            line = re.sub('\(.*\)', '', line)
-
-            # punctuation
-            line = re.sub('➡', '', line)
+            line = re.sub('\(.*\)', '', line)  # actors
+            line = re.sub('➡', '', line)  # line continuation
             line = re.sub('[＜＞《》]', '', line)
-            line = re.sub('｡', '。', line)
-            line = re.sub('([…！？])。', r'\1', line)
+            line = re.sub('｡', '。', line)  # half-width period
+            line = re.sub('([…！？])。', r'\1', line)  # superfluous periods
             line = line.rstrip('・')
 
             # the output transcription shouldn't contain spaces, but removing
