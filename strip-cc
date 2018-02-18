@@ -40,10 +40,7 @@ def main():
             line = re.sub('([…！？])。', r'\1', line)  # superfluous periods
             line = line.rstrip('・')
 
-            # the output transcription shouldn't contain spaces, but removing
-            # them need to be handled on case-by-case basis (for example
-            # whether to put 「、」 etc.).
-            # line = re.sub(' ', '', line)
+            line = re.sub(' ', '', line)  # Japanese doesn't need spaces
 
             if line:
                 lines.append(line)
