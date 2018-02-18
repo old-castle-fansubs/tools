@@ -34,6 +34,7 @@ def main():
         for line in text.split('\\N'):
             line = re.sub('\(.*\)', '', line)  # actors
             line = re.sub('➡', '', line)  # line continuation
+            line = re.sub('≪', '', line)  # distant dialogues
             line = re.sub('[＜＞《》]', '', line)
             line = re.sub('｡', '。', line)  # half-width period
             line = re.sub('([…！？])。', r'\1', line)  # superfluous periods
