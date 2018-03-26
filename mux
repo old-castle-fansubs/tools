@@ -127,7 +127,7 @@ def create_chapters_file(chapters):
     chapters = list(chapters)
     if not chapters:
         return None
-    chapters_path = Path('tmp.xml')
+    chapters_path = Path('chapters.tmp')
     with chapters_path.open('w') as handle:
         handle.write('<?xml version="1.0" encoding="ISO-8859-1"?>\n')
         handle.write('<!DOCTYPE Chapters SYSTEM "matroskachapters.dtd">\n')
@@ -231,7 +231,6 @@ def get_fonts(font_paths):
 
 
 def filter_fonts(used_font_styles, font_paths):
-    print('Used font styles:')
     fonts = get_fonts(font_paths)
 
     ret = set()
@@ -282,7 +281,7 @@ def get_checksum(version, episode, paths):
     for path in sorted(paths):
         with path.open('rb') as handle:
             path_checksum = get_incremental_crc32(handle)
-        print(f'{path}: {path_checksum:08X}')
+        print(f'{path_checksum:08X} {path}')
         checksum ^= path_checksum & 0xFFFF0000
     checksum |= version << 12
     try:
@@ -292,53 +291,72 @@ def get_checksum(version, episode, paths):
     return checksum
 
 
+class header:
+    def __init__(self, title):
+        self.title = title
+
+    def __enter__(self):
+        print(self.title)
+
+    def __exit__(self, *args):
+        print()
+        print()
+
+
 def main():
     args = parse_args()
     episode = args.ep
     version = args.version
 
     source_subs_path = Path('%s.ass' % episode)
-    source_video_path = next(
-        (p for p in Path('source').iterdir() if p.stem == episode), None)
-
-    available_font_paths = []
-    for directory in FONT_DIRS:
-        directory = Path(directory).expanduser()
-        if directory.exists():
-            available_font_paths += list(directory.iterdir())
-
     if not source_subs_path.exists():
         raise RuntimeError('No subs file found')
+
+    source_video_path = next(
+        (p for p in Path('source').iterdir() if p.stem == episode), None)
     if not source_video_path:
         raise RuntimeError('No video file found')
-    if not available_font_paths:
-        raise RuntimeError('No fonts found')
 
-    used_font_styles = get_used_font_styles(source_subs_path)
-    source_font_paths = filter_fonts(used_font_styles, available_font_paths)
+    with header('Collecting fonts'):
+        available_font_paths = []
+        for directory in FONT_DIRS:
+            directory = Path(directory).expanduser()
+            if directory.exists():
+                available_font_paths += list(directory.iterdir())
 
-    video_length = get_video_length(source_video_path)
-    chapters = get_chapters(source_subs_path, video_length)
-    temp_chapters_path = create_chapters_file(chapters)
+        if not available_font_paths:
+            raise RuntimeError('No fonts found')
 
-    title = get_title(source_subs_path)
-    checksum = get_checksum(
-        version,
-        episode,
-        set([source_video_path, source_subs_path, temp_chapters_path]) |
-        source_font_paths)
-    target_video_path = Path(f'[OldCastle] {title} [{checksum:08X}].mkv')
+        used_font_styles = get_used_font_styles(source_subs_path)
+        source_font_paths = filter_fonts(
+            used_font_styles, available_font_paths)
 
-    mux(
-        source_video_path,
-        source_subs_path,
-        temp_chapters_path,
-        source_font_paths,
-        target_video_path)
-    if temp_chapters_path and temp_chapters_path.exists():
-        temp_chapters_path.unlink()
+    with header('Collecting chapters'):
+        video_length = get_video_length(source_video_path)
+        chapters = get_chapters(source_subs_path, video_length)
+        temp_chapters_path = create_chapters_file(chapters)
 
-    change_crc(target_video_path, checksum)
+    with header('Computing target checksum'):
+        title = get_title(source_subs_path)
+        checksum = get_checksum(
+            version,
+            episode,
+            set([source_video_path, source_subs_path, temp_chapters_path]) |
+            source_font_paths)
+        target_video_path = Path(f'[OldCastle] {title} [{checksum:08X}].mkv')
+
+    with header('Muxing'):
+        mux(
+            source_video_path,
+            source_subs_path,
+            temp_chapters_path,
+            source_font_paths,
+            target_video_path)
+        if temp_chapters_path and temp_chapters_path.exists():
+            temp_chapters_path.unlink()
+
+    with header('Adjusting output CRC32'):
+        change_crc(target_video_path, checksum)
 
 
 if __name__ == '__main__':
