@@ -262,6 +262,36 @@ def filter_fonts(used_font_styles, font_paths):
     return ret
 
 
+def get_incremental_crc32(handle):
+    ret = 0
+    chunk = handle.read(1024)
+    if len(chunk):
+        ret = zlib.crc32(chunk)
+        while True:
+            chunk = handle.read(1024)
+            if len(chunk)>0:
+                ret = zlib.crc32(chunk, ret)
+            else:
+                break
+    ret = ret & 0xffffffff
+    return ret
+
+
+def get_checksum(version, episode, paths):
+    checksum = 0
+    for path in sorted(paths):
+        with path.open('rb') as handle:
+            path_checksum = get_incremental_crc32(handle)
+        print(f'{path}: {path_checksum:08X}')
+        checksum ^= path_checksum & 0xFFFF0000
+    checksum |= version << 12
+    try:
+        checksum |= int(episode)
+    except ValueError:
+        pass
+    return checksum
+
+
 def main():
     args = parse_args()
     episode = args.ep
@@ -271,42 +301,42 @@ def main():
     source_video_path = next(
         (p for p in Path('source').iterdir() if p.stem == episode), None)
 
-    source_font_paths = []
+    available_font_paths = []
     for directory in FONT_DIRS:
         directory = Path(directory).expanduser()
         if directory.exists():
-            source_font_paths += list(directory.iterdir())
+            available_font_paths += list(directory.iterdir())
 
     if not source_subs_path.exists():
         raise RuntimeError('No subs file found')
     if not source_video_path:
         raise RuntimeError('No video file found')
-    if not source_font_paths:
+    if not available_font_paths:
         raise RuntimeError('No fonts found')
 
     used_font_styles = get_used_font_styles(source_subs_path)
-    target_font_paths = filter_fonts(used_font_styles, source_font_paths)
-
-    title = get_title(source_subs_path)
-    checksum = zlib.crc32(title.encode()) & 0xFFFF0000
-    checksum |= version << 12
-    try:
-        checksum |= int(episode)
-    except ValueError:
-        pass
-    target_video_path = Path(f'[OldCastle] {title} [{checksum:08X}].mkv')
+    source_font_paths = filter_fonts(used_font_styles, available_font_paths)
 
     video_length = get_video_length(source_video_path)
     chapters = get_chapters(source_subs_path, video_length)
-    target_chapters_path = create_chapters_file(chapters)
+    temp_chapters_path = create_chapters_file(chapters)
+
+    title = get_title(source_subs_path)
+    checksum = get_checksum(
+        version,
+        episode,
+        set([source_video_path, source_subs_path, temp_chapters_path]) |
+        source_font_paths)
+    target_video_path = Path(f'[OldCastle] {title} [{checksum:08X}].mkv')
+
     mux(
         source_video_path,
         source_subs_path,
-        target_chapters_path,
-        target_font_paths,
+        temp_chapters_path,
+        source_font_paths,
         target_video_path)
-    if target_chapters_path and target_chapters_path.exists():
-        target_chapters_path.unlink()
+    if temp_chapters_path and temp_chapters_path.exists():
+        temp_chapters_path.unlink()
 
     change_crc(target_video_path, checksum)
 
