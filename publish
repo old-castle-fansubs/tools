@@ -4,10 +4,12 @@ import subprocess
 import json
 import tempfile
 import shlex
-import requests
-import xdg
+
 import configargparse
+import requests
 import torf
+import tqdm
+import xdg
 
 
 DRY_RUN = False
@@ -135,10 +137,19 @@ def get_target_torrent_path(local_data_path, target_torrent_dir):
 
 
 def build_torrent_file(local_data_path, target_host, target_torrent_dir):
+    print('Building torrent file')
     handle, temp_torrent_path = tempfile.mkstemp(suffix='.torrent')
     temp_torrent_path = pathlib.Path(temp_torrent_path)
     torrent = t = torf.Torrent(path=local_data_path, trackers=TRACKERS)
-    torrent.generate()
+
+    with tqdm.tqdm(total=9e9) as bar:
+        def callback(torrent, filepath, pieces_done, pieces_total):
+            bar.set_description(filepath)
+            bar.update(pieces_done - bar.n)
+            bar.total = pieces_total
+
+        torrent.generate(callback)
+
     torrent.write(temp_torrent_path, overwrite=True)
     return temp_torrent_path
 
