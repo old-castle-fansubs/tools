@@ -12,8 +12,6 @@ import tqdm
 import xdg
 
 
-DRY_RUN = False
-
 TRACKERS = [
     'http://anidex.moe:6969/announce',
     'udp://tracker.pirateparty.gr:6969/announce'
@@ -76,6 +74,8 @@ def parse_args():
         formatter_class=configargparse.RawTextHelpFormatter,
         default_config_files=[
             pathlib.Path(xdg.XDG_CONFIG_HOME) / 'anime-publisher.yml'])
+
+    parser.add_argument('--dry-run', action='store_true')
 
     parser.add_argument('--anidex-key', required=True)
     parser.add_argument(
@@ -179,7 +179,8 @@ def publish_torrent_nyaa(
         information,
         description,
         category_id,
-        local_torrent_path):
+        local_torrent_path,
+        dry_run):
     with local_torrent_path.open('rb') as handle:
         data = {
             'torrent_data': json.dumps({
@@ -198,7 +199,7 @@ def publish_torrent_nyaa(
             'torrent': handle,
         }
 
-        if DRY_RUN:
+        if dry_run:
             print(data)
             print(files)
         else:
@@ -225,7 +226,8 @@ def publish_torrent_anidex(
         category_id,
         language_id,
         group_id,
-        local_torrent_path):
+        local_torrent_path,
+        dry_run):
     with local_torrent_path.open('rb') as handle:
         data = {
             'api_key': api_key,
@@ -237,7 +239,7 @@ def publish_torrent_anidex(
         }
         files = {'file': handle}
 
-        if DRY_RUN:
+        if dry_run:
             print(data)
             print(files)
         else:
@@ -265,14 +267,16 @@ def main():
         args.nyaasi_info,
         '',
         args.nyaasi_cat,
-        temp_torrent_path)
+        temp_torrent_path,
+        args.dry_run)
 
     publish_torrent_anidex(
         args.anidex_key,
         args.anidex_cat,
         args.anidex_lang,
         args.anidex_group,
-        temp_torrent_path)
+        temp_torrent_path,
+        args.dry_run)
 
     temp_torrent_path.unlink()
 
