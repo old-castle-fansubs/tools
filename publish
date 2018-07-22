@@ -73,7 +73,7 @@ def parse_args():
     parser = configargparse.ArgumentParser(
         formatter_class=configargparse.RawTextHelpFormatter,
         default_config_files=[
-            pathlib.Path(xdg.XDG_CONFIG_HOME) / 'anime-publisher.yml'
+            pathlib.Path(xdg.XDG_CONFIG_HOME) / 'oc-tools.yml'
         ]
     )
 
