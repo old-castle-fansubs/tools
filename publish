@@ -143,14 +143,14 @@ def get_target_torrent_path(local_data_path, target_torrent_dir):
     return target_torrent_dir / (local_data_path.name + '.torrent')
 
 
-def build_torrent_file(local_data_path, target_host, target_torrent_dir):
+def build_torrent_file(local_data_path):
     print('Building torrent file')
     handle, temp_torrent_path = tempfile.mkstemp(suffix='.torrent')
     temp_torrent_path = pathlib.Path(temp_torrent_path)
     torrent = t = torf.Torrent(path=local_data_path, trackers=TRACKERS)
 
     with tqdm.tqdm(total=9e9) as bar:
-        def callback(torrent, filepath, pieces_done, pieces_total):
+        def callback(_torrent, filepath, pieces_done, pieces_total):
             bar.set_description(filepath)
             bar.update(pieces_done - bar.n)
             bar.total = pieces_total
@@ -262,9 +262,7 @@ def publish_torrent_anidex(
 def main():
     args = parse_args()
 
-    temp_torrent_path = build_torrent_file(
-        args.path, args.target_host, args.target_torrent_dir
-    )
+    temp_torrent_path = build_torrent_file(args.path)
     target_torrent_path = get_target_torrent_path(
         args.path, args.target_torrent_dir
     )
