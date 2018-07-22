@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import argparse
-import re
 import sys
 from copy import copy
 from pathlib import Path
@@ -10,6 +9,7 @@ import bubblesub.ass.event
 import bubblesub.ass.file
 import bubblesub.ass.reader
 import bubblesub.ass.writer
+import bubblesub.util
 import lxml.etree
 
 
@@ -33,8 +33,8 @@ def extract_chapters(source_path):
         start = chapter_atom.xpath('string(.//ChapterTimeStart)')
         end = chapter_atom.xpath('string(.//ChapterTimeEnd)')
         yield bubblesub.ass.event.Event(
-            start=str_to_ms(start),
-            end=str_to_ms(start),
+            start=bubblesub.util.str_to_ms(start),
+            end=bubblesub.util.str_to_ms(start),
             text=title,
             actor='[chapter]',
             is_comment=True
@@ -56,7 +56,7 @@ def main():
                 'Audio File': str(source)
             })
             for event in extract_chapters(source):
-                ass_file.append(event)
+                ass_file.events.insert(len(ass_file.events), [event])
             if ass_file.info.get('PlayResY') is None:
                 ass_file.info.set('PlayResY', 288)
 
