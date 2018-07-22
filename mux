@@ -44,8 +44,8 @@ class Font:
             if record.nameID in {
                     TT_NAME_ID_FONT_FAMILY,
                     TT_NAME_ID_FULL_NAME,
-                    TT_NAME_ID_TYPOGRAPHIC_FAMILY} \
-                and record.platformID == TT_PLATFORM_MICROSOFT:
+                    TT_NAME_ID_TYPOGRAPHIC_FAMILY
+            } and record.platformID == TT_PLATFORM_MICROSOFT:
                 self.names.append(record.string.decode('utf-16-be'))
 
 
@@ -104,10 +104,12 @@ def get_chapters(subs_path, video_length):
             title = ''.join(
                 chunk['text']
                 for chunk in ass_tag_parser.parse_ass(line.text)
-                if chunk['type'] == 'text')
+                if chunk['type'] == 'text'
+            )
             lines.append((
                 pysubs2.time.ms_to_str(line.start, fractions=True),
-                title))
+                title
+            ))
 
     for i, (start_time, title) in enumerate(lines):
         try:
@@ -153,7 +155,9 @@ def create_chapters_file(chapters):
                     start_time=chapter.start_time,
                     end_time=chapter.end_time,
                     title=chapter.title,
-                    hidden=chapter.hidden))
+                    hidden=chapter.hidden
+                )
+            )
         handle.write('\t</EditionEntry>\n')
         handle.write('</Chapters>')
     return chapters_path
@@ -204,12 +208,14 @@ def get_used_font_styles(subs_path):
 
                 elif ass_tag['type'] == 'font-name':
                     used_font_styles.add(
-                        StyleInfo(ass_tag['name'], bold, italic))
+                        StyleInfo(ass_tag['name'], bold, italic)
+                    )
 
         used_font_styles.add(
-            StyleInfo(style_name_to_style_info[line.style].family,
-            bold,
-            italic))
+            StyleInfo(
+                style_name_to_style_info[line.style].family, bold, italic
+            )
+        )
 
     return used_font_styles
 
@@ -240,7 +246,8 @@ def filter_fonts(used_font_styles, font_paths):
             if style.family.lower() in [n.lower() for n in font.names]:
                 weight = (
                     (font.is_bold == style.bold) +
-                    (font.is_italic == style.italic))
+                    (font.is_italic == style.italic)
+                )
                 candidates.append((weight, font_path))
         candidates.sort(key=lambda i: -i[0])
 
@@ -248,8 +255,10 @@ def filter_fonts(used_font_styles, font_paths):
             '{}{} {:40s} '.format(
                 'B' if style.bold else ' ',
                 'I' if style.italic else ' ',
-                style.family),
-            end='')
+                style.family
+            ),
+            end=''
+        )
 
         if candidates:
             selected_font_path = candidates[0][1]
@@ -268,7 +277,7 @@ def get_incremental_crc32(handle):
         ret = zlib.crc32(chunk)
         while True:
             chunk = handle.read(1024)
-            if len(chunk)>0:
+            if len(chunk) > 0:
                 ret = zlib.crc32(chunk, ret)
             else:
                 break
@@ -313,7 +322,9 @@ def main():
         raise RuntimeError('No subs file found')
 
     source_video_path = next(
-        (p for p in Path('source').iterdir() if p.stem == episode), None)
+        (p for p in Path('source').iterdir() if p.stem == episode),
+        None
+    )
     if not source_video_path:
         raise RuntimeError('No video file found')
 
@@ -329,7 +340,8 @@ def main():
 
         used_font_styles = get_used_font_styles(source_subs_path)
         source_font_paths = filter_fonts(
-            used_font_styles, available_font_paths)
+            used_font_styles, available_font_paths
+        )
 
     with header('Collecting chapters'):
         video_length = get_video_length(source_video_path)
@@ -342,7 +354,8 @@ def main():
             version,
             episode,
             set([source_video_path, source_subs_path, temp_chapters_path]) |
-            source_font_paths)
+            source_font_paths
+        )
         target_video_path = Path(f'[OldCastle] {title} [{checksum:08X}].mkv')
 
     with header('Muxing'):
@@ -351,7 +364,8 @@ def main():
             source_subs_path,
             temp_chapters_path,
             source_font_paths,
-            target_video_path)
+            target_video_path
+        )
         if temp_chapters_path and temp_chapters_path.exists():
             temp_chapters_path.unlink()
 

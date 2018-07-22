@@ -28,7 +28,8 @@ def extract_subtitles(source_path):
             source_path,
             f'{track_id}:/dev/stdout'
         ],
-        stdout=PIPE).stdout
+        stdout=PIPE
+    ).stdout
     return ass.decode()
 
 

@@ -32,7 +32,7 @@ def main():
                 text += node['text']
 
         for line in text.split('\\N'):
-            line = re.sub('\(.*\)', '', line)  # actors
+            line = re.sub(r'\(.*\)', '', line)  # actors
             line = re.sub('➡', '', line)  # line continuation
             line = re.sub('≪', '', line)  # distant dialogues
             line = re.sub('[＜＞《》]', '', line)

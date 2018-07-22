@@ -37,7 +37,8 @@ def extract_chapters(source_path):
             end=str_to_ms(start),
             text=title,
             actor='[chapter]',
-            is_comment=True)
+            is_comment=True
+        )
 
 
 def main():

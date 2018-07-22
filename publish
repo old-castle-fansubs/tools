@@ -73,7 +73,9 @@ def parse_args():
     parser = configargparse.ArgumentParser(
         formatter_class=configargparse.RawTextHelpFormatter,
         default_config_files=[
-            pathlib.Path(xdg.XDG_CONFIG_HOME) / 'anime-publisher.yml'])
+            pathlib.Path(xdg.XDG_CONFIG_HOME) / 'anime-publisher.yml'
+        ]
+    )
 
     parser.add_argument('--dry-run', action='store_true')
 
@@ -84,7 +86,9 @@ def parse_args():
         choices=ANIDEX_CATEGORY_IDS.keys(),
         metavar='ANIDEX_CATEGORY',
         help='\n'.join(
-            f'{key}: {value}' for key, value in ANIDEX_CATEGORY_IDS.items()))
+            f'{key}: {value}' for key, value in ANIDEX_CATEGORY_IDS.items()
+        )
+    )
     parser.add_argument('--anidex-lang', required=True, type=int)
     parser.add_argument('--anidex-group', required=True, type=int)
 
@@ -97,12 +101,15 @@ def parse_args():
         choices=NYAA_SI_CATEGORY_IDS.keys(),
         metavar='NYAASI_CATEGORY',
         help='\n'.join(
-            f'{key}: {value}' for key, value in NYAA_SI_CATEGORY_IDS.items()))
+            f'{key}: {value}' for key, value in NYAA_SI_CATEGORY_IDS.items()
+        )
+    )
 
     parser.add_argument('--target-host', required=True, type=pathlib.Path)
     parser.add_argument('--target-data-dir', required=True, type=pathlib.Path)
     parser.add_argument(
-        '--target-torrent-dir', required=True, type=pathlib.Path)
+        '--target-torrent-dir', required=True, type=pathlib.Path
+    )
 
     parser.add_argument('path', type=pathlib.Path)
     return parser.parse_args()
@@ -111,16 +118,16 @@ def parse_args():
 def sync(local_data_path, target_host, target_data_path):
     print(
         f'Uploading "{local_data_path}" '
-        f'to "{target_data_path}" on {target_host}')
+        f'to "{target_data_path}" on {target_host}'
+    )
 
-    result = subprocess.run(
-        [
-            'rsync',
-            '-ahs',
-            '--progress',
-            local_data_path,
-            f'{target_host}:{target_data_path}'
-        ])
+    result = subprocess.run([
+        'rsync',
+        '-ahs',
+        '--progress',
+        local_data_path,
+        f'{target_host}:{target_data_path}'
+    ])
 
     if result.returncode != 0:
         exit(1)
@@ -159,14 +166,13 @@ def sync_torrent_file(local_torrent_path, target_host, target_torrent_path):
 
 
 def submit_to_transmission(target_host, target_torrent_path):
-    result = subprocess.run(
-        [
-            'ssh',
-            target_host,
-            'transmission-remote',
-            '-a',
-            shlex.quote(str(target_torrent_path))
-        ])
+    result = subprocess.run([
+        'ssh',
+        target_host,
+        'transmission-remote',
+        '-a',
+        shlex.quote(str(target_torrent_path))
+    ])
 
     if result.returncode != 0:
         exit(1)
@@ -180,7 +186,8 @@ def publish_torrent_nyaa(
         description,
         category_id,
         local_torrent_path,
-        dry_run):
+        dry_run
+):
     with local_torrent_path.open('rb') as handle:
         data = {
             'torrent_data': json.dumps({
@@ -204,7 +211,11 @@ def publish_torrent_nyaa(
             print(files)
         else:
             result = requests.post(
-                NYAA_SI_API_URL, auth=(user, password), data=data, files=files)
+                NYAA_SI_API_URL,
+                auth=(user, password),
+                data=data,
+                files=files
+            )
             try:
                 response = result.json()
             except ValueError:
@@ -227,7 +238,8 @@ def publish_torrent_anidex(
         language_id,
         group_id,
         local_torrent_path,
-        dry_run):
+        dry_run
+):
     with local_torrent_path.open('rb') as handle:
         data = {
             'api_key': api_key,
@@ -251,9 +263,11 @@ def main():
     args = parse_args()
 
     temp_torrent_path = build_torrent_file(
-        args.path, args.target_host, args.target_torrent_dir)
+        args.path, args.target_host, args.target_torrent_dir
+    )
     target_torrent_path = get_target_torrent_path(
-        args.path, args.target_torrent_dir)
+        args.path, args.target_torrent_dir
+    )
 
     sync_data_files(args.path, args.target_host, args.target_data_dir)
     sync_torrent_file(temp_torrent_path, args.target_host, target_torrent_path)
@@ -268,7 +282,8 @@ def main():
         '',
         args.nyaasi_cat,
         temp_torrent_path,
-        args.dry_run)
+        args.dry_run
+    )
 
     publish_torrent_anidex(
         args.anidex_key,
@@ -276,9 +291,11 @@ def main():
         args.anidex_lang,
         args.anidex_group,
         temp_torrent_path,
-        args.dry_run)
+        args.dry_run
+    )
 
     temp_torrent_path.unlink()
+
 
 if __name__ == '__main__':
     main()
