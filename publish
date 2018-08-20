@@ -112,7 +112,7 @@ def parse_args():
     )
 
     parser.add_argument('path', type=pathlib.Path)
-    return parser.parse_args()
+    return parser.parse_known_args()[0]
 
 
 def sync(local_data_path, target_host, target_data_path):
