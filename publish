@@ -147,7 +147,7 @@ def build_torrent_file(local_data_path):
     print('Building torrent file')
     handle, temp_torrent_path = tempfile.mkstemp(suffix='.torrent')
     temp_torrent_path = pathlib.Path(temp_torrent_path)
-    torrent = t = torf.Torrent(path=local_data_path, trackers=TRACKERS)
+    torrent = torf.Torrent(path=local_data_path, trackers=TRACKERS)
 
     with tqdm.tqdm(total=9e9) as bar:
         def callback(_torrent, filepath, pieces_done, pieces_total):
