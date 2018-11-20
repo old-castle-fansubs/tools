@@ -1,35 +1,34 @@
 #!/usr/bin/python3
-import re
-import subprocess
 import argparse
+import re
 import shelve
+import subprocess
 import zlib
-from pathlib import Path
 from collections import namedtuple
+from pathlib import Path
 
-import pysubs2
 import ass_tag_parser
-import xdg
 import fontTools.ttLib as font_tools
-
+import pysubs2
+import xdg
 
 TT_NAME_ID_FONT_FAMILY = 1
 TT_NAME_ID_FULL_NAME = 4
 TT_NAME_ID_TYPOGRAPHIC_FAMILY = 16
 TT_PLATFORM_MICROSOFT = 3
 
-SHELVE_PATH = Path(xdg.XDG_CACHE_HOME) / 'oc-tools.dat'
+SHELVE_PATH = Path(xdg.XDG_CACHE_HOME) / "oc-tools.dat"
 FONT_DIRS = [
-    'fonts',
-    '../.fonts',
-    '~/.local/share/fonts',
-    '/usr/share/fonts/TTF',
-    '/usr/share/fonts/OTF',
+    "fonts",
+    "../.fonts",
+    "~/.local/share/fonts",
+    "/usr/share/fonts/TTF",
+    "/usr/share/fonts/OTF",
 ]
 
 
-StyleInfo = namedtuple('StyleInfo', ('family', 'bold', 'italic'))
-Chapter = namedtuple('Chapter', ('start_time', 'end_time', 'title', 'hidden'))
+StyleInfo = namedtuple("StyleInfo", ("family", "bold", "italic"))
+Chapter = namedtuple("Chapter", ("start_time", "end_time", "title", "hidden"))
 
 
 class Font:
@@ -37,79 +36,93 @@ class Font:
         font = font_tools.TTFont(font_path)
 
         self.names = []
-        self.is_bold = bool(font['OS/2'].fsSelection & (1 << 5))
-        self.is_italic = bool(font['OS/2'].fsSelection & 1)
+        self.is_bold = bool(font["OS/2"].fsSelection & (1 << 5))
+        self.is_italic = bool(font["OS/2"].fsSelection & 1)
 
-        for record in font['name'].names:
-            if record.nameID in {
+        for record in font["name"].names:
+            if (
+                record.nameID
+                in {
                     TT_NAME_ID_FONT_FAMILY,
                     TT_NAME_ID_FULL_NAME,
-                    TT_NAME_ID_TYPOGRAPHIC_FAMILY
-            } and record.platformID == TT_PLATFORM_MICROSOFT:
-                self.names.append(record.string.decode('utf-16-be'))
+                    TT_NAME_ID_TYPOGRAPHIC_FAMILY,
+                }
+                and record.platformID == TT_PLATFORM_MICROSOFT
+            ):
+                self.names.append(record.string.decode("utf-16-be"))
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('ep')
-    parser.add_argument('-v', '--version', type=int, default=1)
+    parser.add_argument("ep")
+    parser.add_argument("-v", "--version", type=int, default=1)
     return parser.parse_args()
 
 
 def mux(video_path, subs_path, chapters_path, font_paths, output_path):
-    mux_args = ['mkvmerge', '-o', output_path, video_path]
+    mux_args = ["mkvmerge", "-o", output_path, video_path]
 
     if subs_path:
         mux_args.extend([subs_path])
 
     if chapters_path:
-        mux_args.extend(['--chapters', chapters_path])
+        mux_args.extend(["--chapters", chapters_path])
 
     for font_path in font_paths:
-        mux_args.extend([
-            '--attachment-mime-type', 'application/x-truetype-font',
-            '--attach-file', font_path
-        ])
+        mux_args.extend(
+            [
+                "--attachment-mime-type",
+                "application/x-truetype-font",
+                "--attach-file",
+                font_path,
+            ]
+        )
 
     status = subprocess.run(mux_args)
     if status.returncode != 0:
-        raise RuntimeError('Error while muxing')
+        raise RuntimeError("Error while muxing")
 
 
 def get_title(subs_path):
-    return dict(pysubs2.SSAFile.load(subs_path).info)['Title']
+    return dict(pysubs2.SSAFile.load(subs_path).info)["Title"]
 
 
 def get_video_length(path):
-    status = subprocess.run([
-        'ffprobe',
-        '-i', str(path),
-        '-show_entries', 'format=duration',
-        '-v', 'quiet',
-        '-of', 'csv=p=0',
-        '-sexagesimal',
-    ], stdout=subprocess.PIPE)
+    status = subprocess.run(
+        [
+            "ffprobe",
+            "-i",
+            str(path),
+            "-show_entries",
+            "format=duration",
+            "-v",
+            "quiet",
+            "-of",
+            "csv=p=0",
+            "-sexagesimal",
+        ],
+        stdout=subprocess.PIPE,
+    )
     if status.returncode != 0:
-        raise RuntimeError('Error while getting video length')
-    result = re.match(r'(\d+):(\d+):(\d+)\.(\d+)', status.stdout.decode())
+        raise RuntimeError("Error while getting video length")
+    result = re.match(r"(\d+):(\d+):(\d+)\.(\d+)", status.stdout.decode())
     groups = list(result.groups())
     groups[-1] = groups[-1][:3]
-    return '{:02d}:{:02d}:{:02d}.{:03d}'.format(*[int(g) for g in groups])
+    return "{:02d}:{:02d}:{:02d}.{:03d}".format(*[int(g) for g in groups])
 
 
 def get_chapters(subs_path, video_length):
     lines = []
     for line in pysubs2.SSAFile.load(subs_path):
-        if line.name == '[chapter]':
-            title = ''.join(
-                chunk['text']
+        if line.name == "[chapter]":
+            title = "".join(
+                chunk["text"]
                 for chunk in ass_tag_parser.parse_ass(line.text)
-                if chunk['type'] == 'text'
+                if chunk["type"] == "text"
             )
-            lines.append((
-                pysubs2.time.ms_to_str(line.start, fractions=True),
-                title
-            ))
+            lines.append(
+                (pysubs2.time.ms_to_str(line.start, fractions=True), title)
+            )
 
     for i, (start_time, title) in enumerate(lines):
         try:
@@ -117,9 +130,9 @@ def get_chapters(subs_path, video_length):
         except IndexError:
             end_time = video_length
 
-        if title.startswith('#'):
+        if title.startswith("#"):
             continue
-        if title.startswith('$'):
+        if title.startswith("$"):
             yield Chapter(start_time, end_time, title[1:], True)
         else:
             yield Chapter(start_time, end_time, title, False)
@@ -129,46 +142,46 @@ def create_chapters_file(chapters):
     chapters = list(chapters)
     if not chapters:
         return None
-    chapters_path = Path('chapters.tmp')
-    with chapters_path.open('w') as handle:
+    chapters_path = Path("chapters.tmp")
+    with chapters_path.open("w") as handle:
         handle.write('<?xml version="1.0" encoding="ISO-8859-1"?>\n')
         handle.write('<!DOCTYPE Chapters SYSTEM "matroskachapters.dtd">\n')
-        handle.write('<Chapters>\n')
-        handle.write('\t<EditionEntry>\n')
-        handle.write('\t\t<EditionFlagDefault>1</EditionFlagDefault>\n')
-        handle.write('\t\t<EditionFlagOrdered>1</EditionFlagOrdered>\n')
-        handle.write('\t\t<EditionFlagHidden>0</EditionFlagHidden>\n')
+        handle.write("<Chapters>\n")
+        handle.write("\t<EditionEntry>\n")
+        handle.write("\t\t<EditionFlagDefault>1</EditionFlagDefault>\n")
+        handle.write("\t\t<EditionFlagOrdered>1</EditionFlagOrdered>\n")
+        handle.write("\t\t<EditionFlagHidden>0</EditionFlagHidden>\n")
         for chapter in chapters:
             handle.write(
-                '\t\t<ChapterAtom>\n'
-                '\t\t\t<ChapterTimeStart>{start_time}</ChapterTimeStart>\n'
-                '\t\t\t<ChapterTimeEnd>{end_time}</ChapterTimeEnd>\n'
-                '\t\t\t<ChapterFlagEnabled>{enabled:d}</ChapterFlagEnabled>\n'
-                '\t\t\t<ChapterFlagHidden>{hidden:d}</ChapterFlagHidden>\n'
-                '\t\t\t<ChapterDisplay>\n'
-                '\t\t\t\t<ChapterString>{title}</ChapterString>\n'
-                '\t\t\t\t<ChapterLanguage>eng</ChapterLanguage>\n'
-                '\t\t\t</ChapterDisplay>\n'
-                '\t\t</ChapterAtom>\n'
-                .format(
+                "\t\t<ChapterAtom>\n"
+                "\t\t\t<ChapterTimeStart>{start_time}</ChapterTimeStart>\n"
+                "\t\t\t<ChapterTimeEnd>{end_time}</ChapterTimeEnd>\n"
+                "\t\t\t<ChapterFlagEnabled>{enabled:d}</ChapterFlagEnabled>\n"
+                "\t\t\t<ChapterFlagHidden>{hidden:d}</ChapterFlagHidden>\n"
+                "\t\t\t<ChapterDisplay>\n"
+                "\t\t\t\t<ChapterString>{title}</ChapterString>\n"
+                "\t\t\t\t<ChapterLanguage>eng</ChapterLanguage>\n"
+                "\t\t\t</ChapterDisplay>\n"
+                "\t\t</ChapterAtom>\n".format(
                     enabled=True,
                     start_time=chapter.start_time,
                     end_time=chapter.end_time,
                     title=chapter.title,
-                    hidden=chapter.hidden
+                    hidden=chapter.hidden,
                 )
             )
-        handle.write('\t</EditionEntry>\n')
-        handle.write('</Chapters>')
+        handle.write("\t</EditionEntry>\n")
+        handle.write("</Chapters>")
     return chapters_path
 
 
 def change_crc(path, checksum):
-    tmp_path = Path('tmp.dat')
-    status = subprocess.run([
-        'crcmanip', 'patch', path, tmp_path, '%08x' % checksum])
+    tmp_path = Path("tmp.dat")
+    status = subprocess.run(
+        ["crcmanip", "patch", path, tmp_path, "%08x" % checksum]
+    )
     if status.returncode != 0:
-        raise RuntimeError('Error while patching CRC')
+        raise RuntimeError("Error while patching CRC")
     path.unlink()
     tmp_path.rename(path)
 
@@ -188,27 +201,27 @@ def get_used_font_styles(subs_path):
         try:
             used_font_styles.add(style_name_to_style_info[line.style])
         except KeyError as ex:
-            print(f'Invalid style at line #{i + 1}: {line.style}')
+            print(f"Invalid style at line #{i + 1}: {line.style}")
 
         bold = style_name_to_style_info[line.style].bold
         italic = style_name_to_style_info[line.style].italic
 
         result = ass_tag_parser.parse_ass(line.text)
         for chunk in result:
-            if chunk['type'] != 'tags':
+            if chunk["type"] != "tags":
                 continue
-            for ass_tag in chunk['children']:
-                if ass_tag['type'] == 'bold':
-                    if 'enabled' in ass_tag:
-                        bold = ass_tag['enabled']
+            for ass_tag in chunk["children"]:
+                if ass_tag["type"] == "bold":
+                    if "enabled" in ass_tag:
+                        bold = ass_tag["enabled"]
                     else:
-                        bold = ass_tag['weight'] > 100
-                elif ass_tag['type'] == 'italics':
-                    italic = ass_tag['enabled']
+                        bold = ass_tag["weight"] > 100
+                elif ass_tag["type"] == "italics":
+                    italic = ass_tag["enabled"]
 
-                elif ass_tag['type'] == 'font-name':
+                elif ass_tag["type"] == "font-name":
                     used_font_styles.add(
-                        StyleInfo(ass_tag['name'], bold, italic)
+                        StyleInfo(ass_tag["name"], bold, italic)
                     )
 
         used_font_styles.add(
@@ -224,7 +237,7 @@ def get_fonts(font_paths):
     with shelve.open(str(SHELVE_PATH)) as cache:
         fonts = {}
         for font_path in font_paths:
-            cache_key = 'font-' + str(font_path.resolve())
+            cache_key = "font-" + str(font_path.resolve())
             font = cache.get(cache_key, None)
             if not font:
                 try:
@@ -244,20 +257,19 @@ def filter_fonts(used_font_styles, font_paths):
         candidates = []
         for font_path, font in fonts.items():
             if style.family.lower() in [n.lower() for n in font.names]:
-                weight = (
-                    (font.is_bold == style.bold) +
-                    (font.is_italic == style.italic)
+                weight = (font.is_bold == style.bold) + (
+                    font.is_italic == style.italic
                 )
                 candidates.append((weight, font_path))
         candidates.sort(key=lambda i: -i[0])
 
         print(
-            '{}{} {:40s} '.format(
-                'B' if style.bold else ' ',
-                'I' if style.italic else ' ',
-                style.family
+            "{}{} {:40s} ".format(
+                "B" if style.bold else " ",
+                "I" if style.italic else " ",
+                style.family,
             ),
-            end=''
+            end="",
         )
 
         if candidates:
@@ -265,7 +277,7 @@ def filter_fonts(used_font_styles, font_paths):
             ret.add(selected_font_path)
             print('"{}"'.format(selected_font_path.resolve()))
         else:
-            print('-')
+            print("-")
 
     return ret
 
@@ -281,16 +293,16 @@ def get_incremental_crc32(handle):
                 ret = zlib.crc32(chunk, ret)
             else:
                 break
-    ret = ret & 0xffffffff
+    ret = ret & 0xFFFFFFFF
     return ret
 
 
 def get_checksum(version, episode, paths):
     checksum = 0
     for path in sorted(paths):
-        with path.open('rb') as handle:
+        with path.open("rb") as handle:
             path_checksum = get_incremental_crc32(handle)
-        print(f'{path_checksum:08X} {path}')
+        print(f"{path_checksum:08X} {path}")
         checksum ^= path_checksum & 0xFFFF0000
     checksum |= version << 12
     try:
@@ -317,18 +329,17 @@ def main():
     episode = args.ep
     version = args.version
 
-    source_subs_path = Path('%s.ass' % episode)
+    source_subs_path = Path("%s.ass" % episode)
     if not source_subs_path.exists():
-        raise RuntimeError('No subs file found')
+        raise RuntimeError("No subs file found")
 
     source_video_path = next(
-        (p for p in Path('source').iterdir() if p.stem == episode),
-        None
+        (p for p in Path("source").iterdir() if p.stem == episode), None
     )
     if not source_video_path:
-        raise RuntimeError('No video file found')
+        raise RuntimeError("No video file found")
 
-    with header('Collecting fonts'):
+    with header("Collecting fonts"):
         available_font_paths = []
         for directory in FONT_DIRS:
             directory = Path(directory).expanduser()
@@ -336,42 +347,42 @@ def main():
                 available_font_paths += list(directory.iterdir())
 
         if not available_font_paths:
-            raise RuntimeError('No fonts found')
+            raise RuntimeError("No fonts found")
 
         used_font_styles = get_used_font_styles(source_subs_path)
         source_font_paths = filter_fonts(
             used_font_styles, available_font_paths
         )
 
-    with header('Collecting chapters'):
+    with header("Collecting chapters"):
         video_length = get_video_length(source_video_path)
         chapters = get_chapters(source_subs_path, video_length)
         temp_chapters_path = create_chapters_file(chapters)
 
-    with header('Computing target checksum'):
+    with header("Computing target checksum"):
         title = get_title(source_subs_path)
         checksum = get_checksum(
             version,
             episode,
-            set([source_video_path, source_subs_path, temp_chapters_path]) |
-            source_font_paths
+            set([source_video_path, source_subs_path, temp_chapters_path])
+            | source_font_paths,
         )
-        target_video_path = Path(f'[OldCastle] {title} [{checksum:08X}].mkv')
+        target_video_path = Path(f"[OldCastle] {title} [{checksum:08X}].mkv")
 
-    with header('Muxing'):
+    with header("Muxing"):
         mux(
             source_video_path,
             source_subs_path,
             temp_chapters_path,
             source_font_paths,
-            target_video_path
+            target_video_path,
         )
         if temp_chapters_path and temp_chapters_path.exists():
             temp_chapters_path.unlink()
 
-    with header('Adjusting output CRC32'):
+    with header("Adjusting output CRC32"):
         change_crc(target_video_path, checksum)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

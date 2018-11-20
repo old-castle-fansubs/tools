@@ -3,93 +3,87 @@ import argparse
 import sys
 from copy import copy
 from pathlib import Path
-from subprocess import run, PIPE
+from subprocess import PIPE, run
 
-import bubblesub.ass.event
-import bubblesub.ass.file
-import bubblesub.ass.reader
-import bubblesub.ass.writer
-import bubblesub.util
 import lxml.etree
+from bubblesub.ass.event import Event
+from bubblesub.ass.file import AssFile
+from bubblesub.ass.reader import read_ass
+from bubblesub.ass.writer import write_ass
+from bubblesub.util import str_to_ms
 
-
-VIDEO_EXTENSIONS = {'.mkv', '.mp4'}
-ASS_EXTENSIONS = {'.ass'}
+VIDEO_EXTENSIONS = {".mkv", ".mp4"}
+ASS_EXTENSIONS = {".ass"}
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('source', type=Path, nargs='+')
+    parser.add_argument("source", type=Path, nargs="+")
     return parser.parse_args()
 
 
 def extract_chapters(source_path):
-    out = run(['mkvextract', source_path, 'chapters', '-'], stdout=PIPE).stdout
+    out = run(["mkvextract", source_path, "chapters", "-"], stdout=PIPE).stdout
     if not out:
         return
     xml = lxml.etree.XML(out)
-    for chapter_atom in xml.xpath('//ChapterAtom'):
-        title = chapter_atom.xpath('string(.//ChapterString)')
-        start = chapter_atom.xpath('string(.//ChapterTimeStart)')
-        end = chapter_atom.xpath('string(.//ChapterTimeEnd)')
-        yield bubblesub.ass.event.Event(
-            start=bubblesub.util.str_to_ms(start),
-            end=bubblesub.util.str_to_ms(start),
+    for chapter_atom in xml.xpath("//ChapterAtom"):
+        title = chapter_atom.xpath("string(.//ChapterString)")
+        start = chapter_atom.xpath("string(.//ChapterTimeStart)")
+        end = chapter_atom.xpath("string(.//ChapterTimeEnd)")
+        yield Event(
+            start=str_to_ms(start),
+            end=str_to_ms(start),
             text=title,
-            actor='[chapter]',
-            is_comment=True
+            actor="[chapter]",
+            is_comment=True,
         )
 
 
 def main():
     args = parse_args()
 
-    ass_file = bubblesub.ass.file.AssFile()
+    ass_file = AssFile()
 
     for source in args.source:
         if not source.exists():
             raise RuntimeError(f'File "{source}" does not exist.')
 
         if source.suffix in VIDEO_EXTENSIONS:
-            ass_file.info.update({
-                'Video File': str(source),
-                'Audio File': str(source)
-            })
+            ass_file.info.update(
+                {"Video File": str(source), "Audio File": str(source)}
+            )
             for event in extract_chapters(source):
                 ass_file.events.insert(len(ass_file.events), [event])
-            if ass_file.info.get('PlayResY') is None:
-                ass_file.info.set('PlayResY', 288)
+            if ass_file.info.get("PlayResY") is None:
+                ass_file.info.set("PlayResY", 288)
 
         elif source.suffix in ASS_EXTENSIONS:
-            other_ass_file = bubblesub.ass.reader.read_ass(source)
+            other_ass_file = read_ass(source)
             ass_file.info.update(other_ass_file.info.items())
             ass_file.events.insert(
                 0,
                 [
                     copy(event)
                     for event in other_ass_file.events
-                    if event.actor.startswith('[')
-                    or event.style.lower().startswith((
-                        'opening', 'ending', 'op', 'ed', 'lyrics', 'karaoke'
-                    ))
-                ]
+                    if event.actor.startswith("[")
+                    or event.style.lower().startswith(
+                        ("opening", "ending", "op", "ed", "lyrics", "karaoke")
+                    )
+                ],
             )
             ass_file.styles.clear()
             ass_file.styles.insert(
-                0,
-                [
-                    copy(style)
-                    for style in other_ass_file.styles
-                ]
+                0, [copy(style) for style in other_ass_file.styles]
             )
 
         else:
             raise RuntimeError(f'Don\'t know what to do with "{source}".')
 
-    bubblesub.ass.writer.write_ass(ass_file, sys.stdout)
+    write_ass(ass_file, sys.stdout)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         main()
     except RuntimeError as ex:

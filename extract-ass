@@ -3,32 +3,32 @@ import argparse
 import re
 import sys
 from pathlib import Path
-from subprocess import run, PIPE
+from subprocess import PIPE, run
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-o', '--output', type=Path, default='-')
-    parser.add_argument('source', type=Path)
+    parser.add_argument("-o", "--output", type=Path, default="-")
+    parser.add_argument("source", type=Path)
     return parser.parse_args()
 
 
 def extract_subtitles(source_path):
-    out = run(['mkvmerge', '-i', source_path], stdout=PIPE).stdout.decode()
-    results = re.search(r'Track ID (\d+): subtitles \(SubStationAlpha\)', out)
+    out = run(["mkvmerge", "-i", source_path], stdout=PIPE).stdout.decode()
+    results = re.search(r"Track ID (\d+): subtitles \(SubStationAlpha\)", out)
     if not results:
-        raise RuntimeError('No subtiles found in the file')
+        raise RuntimeError("No subtiles found in the file")
     track_id = int(results.group(1))
     ass = run(
         [
-            'mkvextract',
-            'tracks',
-            '-r',
-            '/dev/null',
+            "mkvextract",
+            "tracks",
+            "-r",
+            "/dev/null",
             source_path,
-            f'{track_id}:/dev/stdout'
+            f"{track_id}:/dev/stdout",
         ],
-        stdout=PIPE
+        stdout=PIPE,
     ).stdout
     return ass.decode()
 
@@ -36,13 +36,13 @@ def extract_subtitles(source_path):
 def main():
     args = parse_args()
     ass = extract_subtitles(args.source)
-    if str(args.output) == '-':
-        print(ass, end='')
+    if str(args.output) == "-":
+        print(ass, end="")
     else:
         args.output.write_text(ass)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         main()
     except RuntimeError as ex:

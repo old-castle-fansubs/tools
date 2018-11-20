@@ -2,32 +2,40 @@
 import argparse
 import subprocess
 from pathlib import Path
+
 import humanfriendly
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('ep')
+    parser.add_argument("ep")
     parser.add_argument(
-        '-t',
-        '--target-size',
+        "-t",
+        "--target-size",
         required=True,
-        type=lambda x: humanfriendly.parse_size(x, binary=True)
+        type=lambda x: humanfriendly.parse_size(x, binary=True),
     )
-    parser.add_argument('-f', '--force', action='store_true')
+    parser.add_argument("-f", "--force", action="store_true")
     return parser.parse_args()
 
 
 def get_video_length(path):
-    status = subprocess.run([
-        'ffprobe',
-        '-i', str(path),
-        '-show_entries', 'format=duration',
-        '-v', 'quiet',
-        '-of', 'csv=p=0',
-    ], stdout=subprocess.PIPE)
+    status = subprocess.run(
+        [
+            "ffprobe",
+            "-i",
+            str(path),
+            "-show_entries",
+            "format=duration",
+            "-v",
+            "quiet",
+            "-of",
+            "csv=p=0",
+        ],
+        stdout=subprocess.PIPE,
+    )
     if status.returncode != 0:
-        raise RuntimeError('Error while getting video length')
+        raise RuntimeError("Error while getting video length")
     return float(status.stdout.decode())
 
 
@@ -38,41 +46,56 @@ def encode(input_path, output_path, target_size):
     video_bitrate = target_size / b_to_kbit / video_length - audio_bitrate
 
     args = [
-        'ffmpeg',
-        '-y',
-        '-i', input_path,
-        '-c:v', 'libx264',
-        '-preset', 'slow',
-        '-tune', 'animation',
-        '-b:v', f'{video_bitrate:0f}k',
-        '-pass', '1',
-        '-an',
-        '-f', 'rawvideo',
-        '/dev/null',
+        "ffmpeg",
+        "-y",
+        "-i",
+        input_path,
+        "-c:v",
+        "libx264",
+        "-preset",
+        "slow",
+        "-tune",
+        "animation",
+        "-b:v",
+        f"{video_bitrate:0f}k",
+        "-pass",
+        "1",
+        "-an",
+        "-f",
+        "rawvideo",
+        "/dev/null",
     ]
     status = subprocess.run(args)
     if status.returncode != 0:
-        raise RuntimeError('Error while encoding')
+        raise RuntimeError("Error while encoding")
 
     args = [
-        'ffmpeg',
-        '-y',
-        '-i', input_path,
-        '-c:v', 'libx264',
-        '-preset', 'slow',
-        '-tune', 'animation',
-        '-b:v', f'{video_bitrate:0f}k',
-        '-pass', '2',
-        '-c:a', 'aac',
-        '-b:a', f'{audio_bitrate:0f}k',
+        "ffmpeg",
+        "-y",
+        "-i",
+        input_path,
+        "-c:v",
+        "libx264",
+        "-preset",
+        "slow",
+        "-tune",
+        "animation",
+        "-b:v",
+        f"{video_bitrate:0f}k",
+        "-pass",
+        "2",
+        "-c:a",
+        "aac",
+        "-b:a",
+        f"{audio_bitrate:0f}k",
         output_path,
     ]
     status = subprocess.run(args)
     if status.returncode != 0:
-        raise RuntimeError('Error while encoding')
+        raise RuntimeError("Error while encoding")
 
-    for path in list(Path('.').iterdir()):
-        if 'ffmpeg2pass' in path.stem:
+    for path in list(Path(".").iterdir()):
+        if "ffmpeg2pass" in path.stem:
             path.unlink()
 
 
@@ -80,18 +103,18 @@ def main():
     args = parse_args()
 
     source_video_path = next(
-        (p for p in Path('source').iterdir() if p.stem == args.ep + '-src'),
-        None
+        (p for p in Path("source").iterdir() if p.stem == args.ep + "-src"),
+        None,
     )
     if not source_video_path:
-        raise RuntimeError('No vide file found')
+        raise RuntimeError("No vide file found")
 
-    target_video_path = Path(f'source/{args.ep}.mkv')
+    target_video_path = Path(f"source/{args.ep}.mkv")
     if target_video_path.exists() and not args.force:
         raise RuntimeError(f'"{target_video_path}" exists')
 
     encode(source_video_path, target_video_path, args.target_size)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
