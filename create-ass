@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import sys
+import typing as T
 from copy import copy
 from pathlib import Path
 from subprocess import PIPE, run
@@ -16,7 +17,7 @@ VIDEO_EXTENSIONS = {".mkv", ".mp4"}
 ASS_EXTENSIONS = {".ass"}
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("source", type=Path, nargs="+")
     parser.add_argument(
@@ -43,7 +44,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def extract_chapters(source_path):
+def extract_chapters(source_path: Path) -> T.Iterable[Event]:
     out = run(["mkvextract", source_path, "chapters", "-"], stdout=PIPE).stdout
     if not out:
         return
@@ -69,7 +70,7 @@ def extract_chapters(source_path):
         )
 
 
-def main():
+def main() -> None:
     args = parse_args()
 
     ass_file = AssFile()
