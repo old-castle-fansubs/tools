@@ -61,21 +61,16 @@ def main():
         elif source.suffix in ASS_EXTENSIONS:
             other_ass_file = read_ass(source)
             ass_file.info.update(other_ass_file.info.items())
-            ass_file.events.insert(
-                0,
-                [
-                    copy(event)
-                    for event in other_ass_file.events
-                    if event.actor.startswith("[")
-                    or event.style.lower().startswith(
-                        ("opening", "ending", "op", "ed", "lyrics", "karaoke")
-                    )
-                ],
-            )
+
+            for event in other_ass_file.events:
+                if event.style.lower().startswith(
+                    ("opening", "ending", "op", "ed", "lyrics", "karaoke")
+                ) or event.actor.startswith("["):
+                    ass_file.events.append(copy(event))
+
             ass_file.styles.clear()
-            ass_file.styles.insert(
-                0, [copy(style) for style in other_ass_file.styles]
-            )
+            for style in other_ass_file.styles:
+                ass_file.styles.append(copy(style))
 
         else:
             raise RuntimeError(f'Don\'t know what to do with "{source}".')
