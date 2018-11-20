@@ -47,7 +47,15 @@ def extract_chapters(source_path):
     out = run(["mkvextract", source_path, "chapters", "-"], stdout=PIPE).stdout
     if not out:
         return
-    xml = lxml.etree.XML(out)
+
+    try:
+        xml = lxml.etree.XML(out)
+    except lxml.etree.XMLSyntaxError:
+        print(
+            f'Warning: no chapters found in "{source_path}"', file=sys.stderr
+        )
+        return
+
     for chapter_atom in xml.xpath("//ChapterAtom"):
         title = chapter_atom.xpath("string(.//ChapterString)")
         start = chapter_atom.xpath("string(.//ChapterTimeStart)")
