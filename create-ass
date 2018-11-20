@@ -19,6 +19,27 @@ ASS_EXTENSIONS = {".ass"}
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("source", type=Path, nargs="+")
+    parser.add_argument(
+        "-C",
+        "--no-chapters",
+        dest="copy_chapters",
+        action="store_false",
+        help="don't copy any chapters from video files",
+    )
+    parser.add_argument(
+        "-S",
+        "--no-styles",
+        dest="copy_styles",
+        action="store_false",
+        help="don't copy any styles from subtitle files",
+    )
+    parser.add_argument(
+        "-E",
+        "--no-events",
+        dest="copy_events",
+        action="store_false",
+        help="don't copy any events from subtitle files",
+    )
     return parser.parse_args()
 
 
@@ -44,7 +65,6 @@ def main():
     args = parse_args()
 
     ass_file = AssFile()
-
     for source in args.source:
         if not source.exists():
             raise RuntimeError(f'File "{source}" does not exist.')
@@ -53,24 +73,28 @@ def main():
             ass_file.info.update(
                 {"Video File": str(source), "Audio File": str(source)}
             )
-            for event in extract_chapters(source):
-                ass_file.events.insert(len(ass_file.events), [event])
             if ass_file.info.get("PlayResY") is None:
                 ass_file.info.set("PlayResY", 288)
+
+            if args.copy_chapters:
+                for event in extract_chapters(source):
+                    ass_file.events.insert(len(ass_file.events), [event])
 
         elif source.suffix in ASS_EXTENSIONS:
             other_ass_file = read_ass(source)
             ass_file.info.update(other_ass_file.info.items())
 
-            for event in other_ass_file.events:
-                if event.style.lower().startswith(
-                    ("opening", "ending", "op", "ed", "lyrics", "karaoke")
-                ) or event.actor.startswith("["):
-                    ass_file.events.append(copy(event))
+            if args.copy_events:
+                for event in other_ass_file.events:
+                    if event.style.lower().startswith(
+                        ("opening", "ending", "op", "ed", "lyrics", "karaoke")
+                    ) or event.actor.startswith("["):
+                        ass_file.events.append(copy(event))
 
-            ass_file.styles.clear()
-            for style in other_ass_file.styles:
-                ass_file.styles.append(copy(style))
+            if args.copy_styles:
+                ass_file.styles.clear()
+                for style in other_ass_file.styles:
+                    ass_file.styles.append(copy(style))
 
         else:
             raise RuntimeError(f'Don\'t know what to do with "{source}".')
