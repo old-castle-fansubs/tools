@@ -53,7 +53,19 @@ def extract_subtitles(source_path: Path) -> str:
     return extract_track(source_path, track_id).decode()
 
 
+def check_deps() -> None:
+    progs = ["mkvmerge", "mkvextract"]
+    for prog in progs:
+        try:
+            run([prog, "-h"], check=True, capture_output=True, text=True)
+        except FileNotFoundError:
+            raise ExtractionError(
+                "mkvtoolnix must be installed for this script to work"
+            )
+
+
 def main() -> None:
+    check_deps()
     args = parse_args()
     ass = extract_subtitles(args.source)
     if str(args.output) == "-":
