@@ -15,6 +15,9 @@ class ExtractionError(Exception):
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("source", type=Path)
+    parser.add_argument(
+        "-m", "--mode", choices=["attachments", "subs"], default="subs"
+    )
     parser.add_argument("-o", "--output", type=Path)
     return parser.parse_args()
 
@@ -45,6 +48,22 @@ def get_info(source_path: Path) -> T.Any:
     return json.loads(result.stdout)
 
 
+def extract_attachment(source_path: Path, attachment_id: int) -> None:
+    result = run(
+        [
+            "mkvextract",
+            "attachments",
+            "-r",
+            "/dev/null",
+            source_path,
+            f"{attachment_id}:/dev/stdout",
+        ],
+        capture_output=True,
+        check=True,
+    )
+    return result.stdout
+
+
 def extract_subtitles(source_path: Path, output_path: Path) -> str:
     info = get_info(source_path)
     ass_track_ids = [
@@ -57,6 +76,22 @@ def extract_subtitles(source_path: Path, output_path: Path) -> str:
         print(ass, end="")
     else:
         output_path.write_text(ass)
+
+
+def extract_attachments(source_path: Path, output_dir: Path) -> str:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    info = get_info(source_path)
+    if not info["attachments"]:
+        raise ExtractionError(f'no attachments found in "{source_path}"')
+    for i, attachment in enumerate(info["attachments"]):
+        target_path = output_dir / f"{i + 1}_{attachment['file_name']}"
+        target_path.write_bytes(
+            extract_attachment(source_path, attachment["id"])
+        )
+        print(
+            f'Written {target_path.stat().st_size} bytes to "{target_path}"',
+            file=sys.stderr,
+        )
 
 
 def check_deps() -> None:
@@ -73,7 +108,14 @@ def check_deps() -> None:
 def main() -> None:
     check_deps()
     args = parse_args()
-    extract_subtitles(args.source, args.output or Path("-"))
+    if args.mode == "subs":
+        extract_subtitles(args.source, args.output or Path("-"))
+    else:
+        if args.output is None:
+            args.output = Path(".")
+        if str(args.output) == "-":
+            raise ExtractionError("cannot extract attachments to stdout")
+        extract_attachments(args.source, args.output)
 
 
 if __name__ == "__main__":
