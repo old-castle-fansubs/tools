@@ -75,6 +75,7 @@ def extract_subtitles(source_path: Path, output_path: Path) -> str:
     if str(output_path) == "-":
         print(ass, end="")
     else:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(ass)
 
 
