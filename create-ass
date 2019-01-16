@@ -87,7 +87,7 @@ def main() -> None:
 
             if args.copy_chapters:
                 for event in extract_chapters(source):
-                    ass_file.events.insert(len(ass_file.events), [event])
+                    ass_file.events.append(event)
 
         elif source.suffix in ASS_EXTENSIONS:
             other_ass_file = read_ass(source)
