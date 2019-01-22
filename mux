@@ -116,9 +116,9 @@ def get_chapters(subs_path, video_length):
     for line in pysubs2.SSAFile.load(subs_path):
         if line.name == "[chapter]":
             title = "".join(
-                chunk["text"]
+                chunk.text
                 for chunk in ass_tag_parser.parse_ass(line.text)
-                if chunk["type"] == "text"
+                if isinstance(chunk, ass_tag_parser.AssText)
             )
             lines.append(
                 (pysubs2.time.ms_to_str(line.start, fractions=True), title)
@@ -203,30 +203,26 @@ def get_used_font_styles(subs_path):
         except KeyError as ex:
             print(f"Invalid style at line #{i + 1}: {line.style}")
 
-        bold = style_name_to_style_info[line.style].bold
-        italic = style_name_to_style_info[line.style].italic
+        is_bold = style_name_to_style_info[line.style].bold
+        is_italic = style_name_to_style_info[line.style].italic
 
-        result = ass_tag_parser.parse_ass(line.text)
-        for chunk in result:
-            if chunk["type"] != "tags":
-                continue
-            for ass_tag in chunk["children"]:
-                if ass_tag["type"] == "bold":
-                    if "enabled" in ass_tag:
-                        bold = ass_tag["enabled"]
-                    else:
-                        bold = ass_tag["weight"] > 100
-                elif ass_tag["type"] == "italics":
-                    italic = ass_tag["enabled"]
-
-                elif ass_tag["type"] == "font-name":
-                    used_font_styles.add(
-                        StyleInfo(ass_tag["name"], bold, italic)
-                    )
+        ass_line = ass_tag_parser.parse_ass(line.text)
+        for ass_item in ass_line:
+            if isinstance(ass_item, ass_tag_parser.AssTagBold):
+                if ass_item.enabled:
+                    is_bold = ass_item.enabled
+                else:
+                    is_bold = ass_item.weight > 100
+            elif isinstance(ass_item, ass_tag_parser.AssTagItalic):
+                is_italic = ass_item.enabled
+            elif isinstance(ass_item, ass_tag_parser.AssTagFontName):
+                used_font_styles.add(
+                    StyleInfo(ass_item.name, is_bold, is_italic)
+                )
 
         used_font_styles.add(
             StyleInfo(
-                style_name_to_style_info[line.style].family, bold, italic
+                style_name_to_style_info[line.style].family, is_bold, is_italic
             )
         )
 
