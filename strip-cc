@@ -4,8 +4,9 @@ import re
 import sys
 from pathlib import Path
 
-from ass_tag_parser import parse_ass
 from pysubs2 import SSAFile
+
+import ass_tag_parser
 
 
 def parse_args():
@@ -29,9 +30,9 @@ def main():
             continue
 
         text = ""
-        for node in parse_ass(sub.text):
-            if node["type"] == "text":
-                text += node["text"]
+        for ass_item in ass_tag_parser.parse_ass(sub.text):
+            if isinstance(ass_item, ass_tag_parser.AssText):
+                text += ass_item.text
 
         for line in text.split("\\N"):
             line = re.sub(r"\(.*\)", "", line)  # actors
