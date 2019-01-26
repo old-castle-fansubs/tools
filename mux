@@ -19,8 +19,7 @@ TT_PLATFORM_MICROSOFT = 3
 
 SHELVE_PATH = Path(xdg.XDG_CACHE_HOME) / "oc-tools.dat"
 FONT_DIRS = [
-    "fonts",
-    "../.fonts",
+    Path(xdg.XDG_CONFIG_HOME) / "oc-fonts",
     "~/.local/share/fonts",
     "/usr/share/fonts/TTF",
     "/usr/share/fonts/OTF",
