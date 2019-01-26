@@ -219,7 +219,10 @@ def get_used_font_styles(subs_path):
                     is_bold = ass_item.weight > 100
             elif isinstance(ass_item, ass_tag_parser.AssTagItalic):
                 is_italic = ass_item.enabled
-            elif isinstance(ass_item, ass_tag_parser.AssTagFontName):
+            elif (
+                isinstance(ass_item, ass_tag_parser.AssTagFontName)
+                and ass_item.name is not None
+            ):
                 used_font_styles.add(
                     StyleInfo(ass_item.name, is_bold, is_italic)
                 )
