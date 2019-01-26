@@ -206,7 +206,12 @@ def get_used_font_styles(subs_path):
         is_bold = style_name_to_style_info[line.style].bold
         is_italic = style_name_to_style_info[line.style].italic
 
-        ass_line = ass_tag_parser.parse_ass(line.text)
+        try:
+            ass_line = ass_tag_parser.parse_ass(line.text)
+        except ass_tag_parser.errors.BaseError as ex:
+            print(f"Error parsing line #{i + 1} ({line.text}): {ex}")
+            continue
+
         for ass_item in ass_line:
             if isinstance(ass_item, ass_tag_parser.AssTagBold):
                 if ass_item.enabled:
