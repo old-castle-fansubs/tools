@@ -68,7 +68,7 @@ NYAA_SI_CATEGORY_IDS = {
 def parse_args() -> configargparse.Namespace:
     parser = configargparse.ArgumentParser(
         formatter_class=configargparse.RawTextHelpFormatter,
-        default_config_files=[Path(xdg.XDG_CONFIG_HOME) / "oc-tools.yml"],
+        default_config_files=[str(Path(xdg.XDG_CONFIG_HOME) / "oc-tools.yml")],
     )
 
     parser.add_argument("--dry-run", action="store_true")
