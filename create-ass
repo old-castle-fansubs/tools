@@ -7,7 +7,7 @@ from pathlib import Path
 from subprocess import PIPE, run
 
 import lxml.etree
-from bubblesub.ass.event import Event
+from bubblesub.ass.event import AssEvent
 from bubblesub.ass.file import AssFile
 from bubblesub.ass.reader import read_ass
 from bubblesub.ass.writer import write_ass
@@ -44,7 +44,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def extract_chapters(source_path: Path) -> T.Iterable[Event]:
+def extract_chapters(source_path: Path) -> T.Iterable[AssEvent]:
     out = run(["mkvextract", source_path, "chapters", "-"], stdout=PIPE).stdout
     if not out:
         return
@@ -61,7 +61,7 @@ def extract_chapters(source_path: Path) -> T.Iterable[Event]:
         title = chapter_atom.xpath("string(.//ChapterString)")
         start = chapter_atom.xpath("string(.//ChapterTimeStart)")
         end = chapter_atom.xpath("string(.//ChapterTimeEnd)")
-        yield Event(
+        yield AssEvent(
             start=str_to_ms(start),
             end=str_to_ms(start),
             text=title,
@@ -79,11 +79,11 @@ def main() -> None:
             raise RuntimeError(f'File "{source}" does not exist.')
 
         if source.suffix in VIDEO_EXTENSIONS:
-            ass_file.info.update(
+            ass_file.meta.update(
                 {"Video File": str(source), "Audio File": str(source)}
             )
-            if ass_file.info.get("PlayResY") is None:
-                ass_file.info.set("PlayResY", 288)
+            if ass_file.meta.get("PlayResY") is None:
+                ass_file.meta.set("PlayResY", 288)
 
             if args.copy_chapters:
                 for event in extract_chapters(source):
@@ -91,7 +91,7 @@ def main() -> None:
 
         elif source.suffix in ASS_EXTENSIONS:
             other_ass_file = read_ass(source)
-            ass_file.info.update(other_ass_file.info.items())
+            ass_file.meta.update(other_ass_file.meta.items())
 
             if args.copy_events:
                 for event in other_ass_file.events:
