@@ -58,8 +58,8 @@ def parse_args():
     return parser.parse_args()
 
 
-def mux(video_path, subs_path, chapters_path, font_paths, output_path):
-    mux_args = ["mkvmerge", "-o", output_path, video_path]
+def mux(title, video_path, subs_path, chapters_path, font_paths, output_path):
+    mux_args = ["mkvmerge", "--title", title, "-o", output_path, video_path]
 
     if subs_path:
         mux_args.extend([subs_path])
@@ -374,6 +374,7 @@ def main():
 
     with header("Muxing"):
         mux(
+            title,
             source_video_path,
             source_subs_path,
             temp_chapters_path,
