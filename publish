@@ -7,6 +7,7 @@ import tempfile
 from pathlib import Path
 
 import configargparse
+import humanfriendly
 import requests
 import torf
 import tqdm
@@ -63,6 +64,8 @@ NYAA_SI_CATEGORY_IDS = {
     "6_1": "Software - Applications",
     "6_2": "Software - Games",
 }
+
+MAX_TORRENT_PIECE_SIZE = 4 * 1024 * 1024
 
 
 def parse_args() -> configargparse.Namespace:
@@ -148,6 +151,13 @@ def build_torrent_file(local_data_path: Path) -> Path:
     handle, temp_torrent_path = tempfile.mkstemp(suffix=".torrent")
     temp_torrent_path = Path(temp_torrent_path)
     torrent = torf.Torrent(path=local_data_path, trackers=TRACKERS)
+    if torrent.piece_size > MAX_TORRENT_PIECE_SIZE:
+        torrent.piece_size = MAX_TORRENT_PIECE_SIZE
+    print(
+        "Piece size:",
+        humanfriendly.format_size(torrent.piece_size, binary=True),
+        file=sys.stderr,
+    )
 
     with tqdm.tqdm(total=9e9) as bar:
 
