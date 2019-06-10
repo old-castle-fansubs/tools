@@ -107,7 +107,7 @@ def main():
         None,
     )
     if not source_video_path:
-        raise RuntimeError("No vide file found")
+        raise RuntimeError("No video file found")
 
     target_video_path = Path(f"source/{args.ep}.mkv")
     if target_video_path.exists() and not args.force:
