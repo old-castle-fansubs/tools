@@ -1,14 +1,31 @@
 #!/usr/bin/python3
 import argparse
 import subprocess
+import typing as T
+from dataclasses import dataclass
 from pathlib import Path
 
 import humanfriendly
+
+B_TO_KBIT = 1024 // 8
+
+
+@dataclass
+class CropArea:
+    w: int
+    h: int
+    x: int
+    y: int
+
+    @staticmethod
+    def from_string(source: str) -> "CropArea":
+        return CropArea(*map(int, source.split(":")))
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("ep")
+    parser.add_argument("--crop", type=CropArea.from_string)
     parser.add_argument(
         "-t",
         "--target-size",
@@ -19,7 +36,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def get_video_length(path):
+def get_video_length(path: Path) -> float:
     status = subprocess.run(
         [
             "ffprobe",
@@ -39,60 +56,41 @@ def get_video_length(path):
     return float(status.stdout.decode())
 
 
-def encode(input_path, output_path, target_size):
-    b_to_kbit = 1024 / 8
+def encode(
+    input_path: Path,
+    output_path: Path,
+    target_size: int,
+    crop: T.Optional[CropArea],
+) -> None:
     audio_bitrate = 128
     video_length = get_video_length(input_path)
-    video_bitrate = target_size / b_to_kbit / video_length - audio_bitrate
+    video_bitrate = target_size / B_TO_KBIT / video_length - audio_bitrate
 
-    args = [
-        "ffmpeg",
-        "-y",
-        "-i",
-        input_path,
-        "-c:v",
-        "libx264",
-        "-preset",
-        "slow",
-        "-tune",
-        "animation",
-        "-b:v",
-        f"{video_bitrate:0f}k",
-        "-pass",
-        "1",
-        "-an",
-        "-f",
-        "rawvideo",
-        "/dev/null",
-    ]
-    status = subprocess.run(args)
-    if status.returncode != 0:
-        raise RuntimeError("Error while encoding")
+    args = ["ffmpeg", "-y", "-i", input_path]
+    if crop:
+        args += ["-vf", f"crop={crop.w}:{crop.h}:{crop.x}:{crop.y}"]
+    args += ["-c:v", "libx264"]
+    args += ["-preset", "slow"]
+    args += ["-tune", "animation"]
+    args += ["-b:v", f"{video_bitrate:0f}k"]
+    args += ["-pass", "1"]
+    args += ["-an"]
+    args += ["-f", "rawvideo"]
+    args += ["/dev/null"]
+    subprocess.run(args, check=True)
 
-    args = [
-        "ffmpeg",
-        "-y",
-        "-i",
-        input_path,
-        "-c:v",
-        "libx264",
-        "-preset",
-        "slow",
-        "-tune",
-        "animation",
-        "-b:v",
-        f"{video_bitrate:0f}k",
-        "-pass",
-        "2",
-        "-c:a",
-        "aac",
-        "-b:a",
-        f"{audio_bitrate:0f}k",
-        output_path,
-    ]
-    status = subprocess.run(args)
-    if status.returncode != 0:
-        raise RuntimeError("Error while encoding")
+    args = ["ffmpeg", "-y", "-i", input_path]
+    if crop:
+        args += ["-vf", f"crop={crop.w}:{crop.h}:{crop.x}:{crop.y}"]
+    args += ["-c:v", "libx264"]
+    args += ["-preset", "slow"]
+    args += ["-tune", "animation"]
+    args += ["-b:v", f"{video_bitrate:0f}k"]
+    args += ["-pass", "2"]
+    args += ["-c:a", "aac"]
+    args += ["-b:a", f"{audio_bitrate:0f}k"]
+    args += [output_path]
+    subprocess.run(args, check=True)
 
     for path in list(Path(".").iterdir()):
         if "ffmpeg2pass" in path.stem:
@@ -113,7 +111,12 @@ def main():
     if target_video_path.exists() and not args.force:
         raise RuntimeError(f'"{target_video_path}" exists')
 
-    encode(source_video_path, target_video_path, args.target_size)
+    encode(
+        source_video_path,
+        target_video_path,
+        target_size=args.target_size,
+        crop=args.crop,
+    )
 
 
 if __name__ == "__main__":
