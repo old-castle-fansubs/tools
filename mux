@@ -213,7 +213,7 @@ def get_used_font_styles(subs_path):
 
         for ass_item in ass_line:
             if isinstance(ass_item, ass_tag_parser.AssTagBold):
-                if ass_item.enabled:
+                if ass_item.enabled is not None:
                     is_bold = ass_item.enabled
                 else:
                     is_bold = ass_item.weight > 100
