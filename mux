@@ -3,14 +3,17 @@ import argparse
 import re
 import shelve
 import subprocess
+import typing as T
 import zlib
 from collections import namedtuple
+from dataclasses import dataclass
 from pathlib import Path
 
-import ass_tag_parser
 import fontTools.ttLib as font_tools
 import pysubs2
 import xdg
+
+import ass_tag_parser
 
 TT_NAME_ID_FONT_FAMILY = 1
 TT_NAME_ID_FULL_NAME = 4
@@ -26,8 +29,22 @@ FONT_DIRS = [
 ]
 
 
-StyleInfo = namedtuple("StyleInfo", ("family", "bold", "italic"))
-Chapter = namedtuple("Chapter", ("start_time", "end_time", "title", "hidden"))
+@dataclass
+class StyleInfo:
+    family: str
+    weight: int
+    is_italic: bool
+
+    def __hash__(self) -> int:
+        return hash((self.family, self.weight, self.is_italic))
+
+
+@dataclass
+class Chapter:
+    start_time: int
+    end_time: int
+    title: str
+    hidden: bool
 
 
 class Font:
@@ -55,7 +72,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("ep")
     parser.add_argument("-v", "--version", type=int, default=1)
-    parser.add_argument("-g", "--group", default='OldCastle')
+    parser.add_argument("-g", "--group", default="OldCastle")
     return parser.parse_args()
 
 
@@ -186,11 +203,22 @@ def change_crc(path, checksum):
     tmp_path.rename(path)
 
 
+def bold_to_weight(value: T.Union[int, bool]) -> int:
+    if value is True or value == 1:
+        return 700
+    if value is False or value == 0:
+        return 400
+    assert isinstance(value, int)
+    return value
+
+
 def get_used_font_styles(subs_path):
     subs = pysubs2.SSAFile.load(subs_path)
 
     style_name_to_style_info = {
-        style_name: StyleInfo(style.fontname, style.bold, style.italic)
+        style_name: StyleInfo(
+            style.fontname, bold_to_weight(style.bold), style.italic
+        )
         for style_name, style in subs.styles.items()
     }
 
@@ -198,13 +226,15 @@ def get_used_font_styles(subs_path):
     for i, line in enumerate(subs):
         if line.is_comment:
             continue
+
+        style_info = style_name_to_style_info[line.style]
         try:
-            used_font_styles.add(style_name_to_style_info[line.style])
+            used_font_styles.add(style_info)
         except KeyError as ex:
             print(f"Invalid style at line #{i + 1}: {line.style}")
 
-        is_bold = style_name_to_style_info[line.style].bold
-        is_italic = style_name_to_style_info[line.style].italic
+        weight = style_info.weight
+        is_italic = style_info.is_italic
 
         try:
             ass_line = ass_tag_parser.parse_ass(line.text)
@@ -215,9 +245,9 @@ def get_used_font_styles(subs_path):
         for ass_item in ass_line:
             if isinstance(ass_item, ass_tag_parser.AssTagBold):
                 if ass_item.enabled is not None:
-                    is_bold = ass_item.enabled
+                    weight = 700 if ass_item.enabled else 400
                 else:
-                    is_bold = ass_item.weight > 100
+                    weight = ass_item.weight
             elif isinstance(ass_item, ass_tag_parser.AssTagItalic):
                 is_italic = ass_item.enabled
             elif (
@@ -225,12 +255,12 @@ def get_used_font_styles(subs_path):
                 and ass_item.name is not None
             ):
                 used_font_styles.add(
-                    StyleInfo(ass_item.name, is_bold, is_italic)
+                    StyleInfo(ass_item.name, weight, is_italic)
                 )
 
         used_font_styles.add(
             StyleInfo(
-                style_name_to_style_info[line.style].family, is_bold, is_italic
+                family=style_info.family, weight=weight, is_italic=is_italic
             )
         )
 
@@ -261,19 +291,15 @@ def filter_fonts(used_font_styles, font_paths):
         candidates = []
         for font_path, font in fonts.items():
             if style.family.lower() in [n.lower() for n in font.names]:
-                weight = (font.is_bold == style.bold) + (
-                    font.is_italic == style.italic
+                weight = (font.is_bold == (style.weight > 400)) + (
+                    font.is_italic == style.is_italic
                 )
                 candidates.append((weight, font_path))
         candidates.sort(key=lambda i: -i[0])
 
         print(
-            "{}{} {:40s} ".format(
-                "B" if style.bold else " ",
-                "I" if style.italic else " ",
-                style.family,
-            ),
-            end="",
+            f"({style.family}, {style.weight}, {style.is_italic})".ljust(40),
+            end=" -> ",
         )
 
         if candidates:
