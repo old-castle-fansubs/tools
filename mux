@@ -1,11 +1,11 @@
 #!/usr/bin/python3
 import argparse
+import contextlib
 import re
 import shelve
 import subprocess
 import typing as T
 import zlib
-from collections import namedtuple
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -23,9 +23,9 @@ TT_PLATFORM_MICROSOFT = 3
 SHELVE_PATH = Path(xdg.XDG_CACHE_HOME) / "oc-tools.dat"
 FONT_DIRS = [
     Path(xdg.XDG_CONFIG_HOME) / "oc-fonts",
-    "~/.local/share/fonts",
-    "/usr/share/fonts/TTF",
-    "/usr/share/fonts/OTF",
+    Path("~/.local/share/fonts"),
+    Path("/usr/share/fonts/TTF"),
+    Path("/usr/share/fonts/OTF"),
 ]
 
 
@@ -48,10 +48,10 @@ class Chapter:
 
 
 class Font:
-    def __init__(self, font_path):
+    def __init__(self, font_path: Path) -> None:
         font = font_tools.TTFont(font_path)
 
-        self.names = []
+        self.names: T.List[str] = []
         self.is_bold = bool(font["OS/2"].fsSelection & (1 << 5))
         self.is_italic = bool(font["OS/2"].fsSelection & 1)
 
@@ -68,21 +68,35 @@ class Font:
                 self.names.append(record.string.decode("utf-16-be"))
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("ep")
     parser.add_argument("-v", "--version", type=int, default=1)
     return parser.parse_args()
 
 
-def mux(title, video_path, subs_path, chapters_path, font_paths, output_path):
-    mux_args = ["mkvmerge", "--title", title, "-o", output_path, video_path]
+def mux(
+    title: str,
+    video_path: Path,
+    subs_path: Path,
+    chapters_path: T.Optional[Path],
+    font_paths: T.Set[Path],
+    output_path: Path,
+) -> None:
+    mux_args = [
+        "mkvmerge",
+        "--title",
+        title,
+        "-o",
+        str(output_path),
+        str(video_path),
+    ]
 
     if subs_path:
-        mux_args.extend([subs_path])
+        mux_args.extend([str(subs_path)])
 
     if chapters_path:
-        mux_args.extend(["--chapters", chapters_path])
+        mux_args.extend(["--chapters", str(chapters_path)])
 
     for font_path in font_paths:
         mux_args.extend(
@@ -90,7 +104,7 @@ def mux(title, video_path, subs_path, chapters_path, font_paths, output_path):
                 "--attachment-mime-type",
                 "application/x-truetype-font",
                 "--attach-file",
-                font_path,
+                str(font_path),
             ]
         )
 
@@ -99,15 +113,15 @@ def mux(title, video_path, subs_path, chapters_path, font_paths, output_path):
         raise RuntimeError("Error while muxing")
 
 
-def get_title(subs_path):
-    return dict(pysubs2.SSAFile.load(subs_path).info)["Title"]
+def get_title(subs_path: Path) -> str:
+    return T.cast(str, dict(pysubs2.SSAFile.load(subs_path).info)["Title"])
 
 
 def get_group_name(subs_path: Path) -> str:
     return dict(pysubs2.SSAFile.load(subs_path).info).get("Group", "OldCastle")
 
 
-def get_video_length(path):
+def get_video_length(path: Path) -> str:
     status = subprocess.run(
         [
             "ffprobe",
@@ -126,12 +140,13 @@ def get_video_length(path):
     if status.returncode != 0:
         raise RuntimeError("Error while getting video length")
     result = re.match(r"(\d+):(\d+):(\d+)\.(\d+)", status.stdout.decode())
+    assert result
     groups = list(result.groups())
     groups[-1] = groups[-1][:3]
     return "{:02d}:{:02d}:{:02d}.{:03d}".format(*[int(g) for g in groups])
 
 
-def get_chapters(subs_path, video_length):
+def get_chapters(subs_path: Path, video_length: str) -> T.Iterable[Chapter]:
     lines = []
     for line in pysubs2.SSAFile.load(subs_path):
         if line.name == "[chapter]":
@@ -158,7 +173,7 @@ def get_chapters(subs_path, video_length):
             yield Chapter(start_time, end_time, title, False)
 
 
-def create_chapters_file(chapters):
+def create_chapters_file(chapters: T.Iterable[Chapter]) -> T.Optional[Path]:
     chapters = list(chapters)
     if not chapters:
         return None
@@ -195,7 +210,7 @@ def create_chapters_file(chapters):
     return chapters_path
 
 
-def change_crc(path, checksum):
+def change_crc(path: Path, checksum: int) -> None:
     tmp_path = Path("tmp.dat")
     status = subprocess.run(
         ["crcmanip", "patch", path, tmp_path, "%08x" % checksum]
@@ -215,7 +230,7 @@ def bold_to_weight(value: T.Union[int, bool]) -> int:
     return value
 
 
-def get_used_font_styles(subs_path):
+def get_used_font_styles(subs_path: Path) -> T.Iterable[StyleInfo]:
     subs = pysubs2.SSAFile.load(subs_path)
 
     style_name_to_style_info = {
@@ -270,7 +285,7 @@ def get_used_font_styles(subs_path):
     return used_font_styles
 
 
-def get_fonts(font_paths):
+def get_fonts(font_paths: T.Iterable[Path]) -> T.Dict[Path, Font]:
     with shelve.open(str(SHELVE_PATH)) as cache:
         fonts = {}
         for font_path in font_paths:
@@ -286,10 +301,12 @@ def get_fonts(font_paths):
         return fonts
 
 
-def filter_fonts(used_font_styles, font_paths):
+def filter_fonts(
+    used_font_styles: T.Iterable[StyleInfo], font_paths: T.Iterable[Path]
+) -> T.Set[Path]:
     fonts = get_fonts(font_paths)
 
-    ret = set()
+    ret: T.Set[Path] = set()
     for style in sorted(used_font_styles, key=lambda s: s.family):
         candidates = []
         for font_path, font in fonts.items():
@@ -315,7 +332,7 @@ def filter_fonts(used_font_styles, font_paths):
     return ret
 
 
-def get_incremental_crc32(handle):
+def get_incremental_crc32(handle: T.IO[bytes]) -> int:
     ret = 0
     chunk = handle.read(1024)
     if len(chunk):
@@ -326,11 +343,11 @@ def get_incremental_crc32(handle):
                 ret = zlib.crc32(chunk, ret)
             else:
                 break
-    ret = ret & 0xFFFFFFFF
+    ret &= 0xFFFFFFFF
     return ret
 
 
-def get_checksum(version, episode, paths):
+def get_checksum(version: int, episode: int, paths: T.Iterable[Path]) -> int:
     checksum = 0
     for path in sorted(paths):
         with path.open("rb") as handle:
@@ -345,19 +362,15 @@ def get_checksum(version, episode, paths):
     return checksum
 
 
-class header:
-    def __init__(self, title):
-        self.title = title
-
-    def __enter__(self):
-        print(self.title)
-
-    def __exit__(self, *args):
-        print()
-        print()
+@contextlib.contextmanager
+def header(title: str) -> T.Any:
+    print(title)
+    yield
+    print()
+    print()
 
 
-def main():
+def main() -> None:
     args = parse_args()
     episode = args.ep
     version = args.version
@@ -373,9 +386,8 @@ def main():
         raise RuntimeError("No video file found")
 
     with header("Collecting fonts"):
-        available_font_paths = []
+        available_font_paths: T.List[Path] = []
         for directory in FONT_DIRS:
-            directory = Path(directory).expanduser()
             if directory.exists():
                 available_font_paths += list(directory.iterdir())
 
@@ -397,12 +409,13 @@ def main():
         title = get_title(source_subs_path)
 
     with header("Computing target checksum"):
-        checksum = get_checksum(
-            version,
-            episode,
-            set([source_video_path, source_subs_path, temp_chapters_path])
-            | source_font_paths,
-        )
+        all_paths: T.Set[Path] = set(
+            [source_subs_path, source_video_path]
+        ) | source_font_paths
+        if temp_chapters_path:
+            all_paths.add(temp_chapters_path)
+
+        checksum = get_checksum(version, episode, all_paths)
         target_video_path = Path(
             f"[{group_name}] {title} [{checksum:08X}].mkv"
         )
