@@ -72,7 +72,6 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("ep")
     parser.add_argument("-v", "--version", type=int, default=1)
-    parser.add_argument("-g", "--group", default="OldCastle")
     return parser.parse_args()
 
 
@@ -102,6 +101,10 @@ def mux(title, video_path, subs_path, chapters_path, font_paths, output_path):
 
 def get_title(subs_path):
     return dict(pysubs2.SSAFile.load(subs_path).info)["Title"]
+
+
+def get_group_name(subs_path: Path) -> str:
+    return dict(pysubs2.SSAFile.load(subs_path).info).get("Group", "OldCastle")
 
 
 def get_video_length(path):
@@ -358,7 +361,6 @@ def main():
     args = parse_args()
     episode = args.ep
     version = args.version
-    group = args.group
 
     source_subs_path = Path("%s.ass" % episode)
     if not source_subs_path.exists():
@@ -390,15 +392,20 @@ def main():
         chapters = get_chapters(source_subs_path, video_length)
         temp_chapters_path = create_chapters_file(chapters)
 
-    with header("Computing target checksum"):
+    with header("Collecting metadata"):
+        group_name = get_group_name(source_subs_path)
         title = get_title(source_subs_path)
+
+    with header("Computing target checksum"):
         checksum = get_checksum(
             version,
             episode,
             set([source_video_path, source_subs_path, temp_chapters_path])
             | source_font_paths,
         )
-        target_video_path = Path(f"[{group}] {title} [{checksum:08X}].mkv")
+        target_video_path = Path(
+            f"[{group_name}] {title} [{checksum:08X}].mkv"
+        )
 
     with header("Muxing"):
         mux(
