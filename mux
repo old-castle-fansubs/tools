@@ -118,7 +118,11 @@ def get_title(subs_path: Path) -> str:
 
 
 def get_group_name(subs_path: Path) -> str:
-    return dict(pysubs2.SSAFile.load(subs_path).info).get("Group", "OldCastle")
+    return (
+        dict(pysubs2.SSAFile.load(subs_path).info)
+        .get("Group", "OldCastle")
+        .replace(" & ", "-")
+    )
 
 
 def get_video_length(path: Path) -> str:
