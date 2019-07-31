@@ -7,10 +7,10 @@ from pathlib import Path
 from subprocess import PIPE, run
 
 import lxml.etree
-from bubblesub.ass.event import AssEvent
-from bubblesub.ass.file import AssFile
-from bubblesub.ass.reader import read_ass
-from bubblesub.ass.writer import write_ass
+from bubblesub.fmt.ass.event import AssEvent
+from bubblesub.fmt.ass.file import AssFile
+from bubblesub.fmt.ass.reader import read_ass
+from bubblesub.fmt.ass.writer import write_ass
 from bubblesub.util import str_to_ms
 
 VIDEO_EXTENSIONS = {".mkv", ".mp4"}
