@@ -49,7 +49,7 @@ def extract_track(source_path: Path, track_id: int) -> bytes:
 
 def get_info(source_path: Path) -> T.Any:
     result = run(
-        ["mkvmerge", "-J", source_path],
+        ["mkvmerge", "-J", str(source_path)],
         check=True,
         capture_output=True,
         text=True,
@@ -119,9 +119,9 @@ def main() -> None:
     check_deps()
     args = parse_args()
     if args.mode == "subs":
-        extract_subtitles(args.source, args.output)
+        extract_subtitles(args.source.expanduser(), args.output.expanduser())
     else:
-        extract_attachments(args.source, args.output)
+        extract_attachments(args.source.expanduser(), args.output.expanduser())
 
 
 if __name__ == "__main__":
