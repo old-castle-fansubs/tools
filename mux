@@ -115,13 +115,16 @@ class Chapter:
     hidden: bool
 
 
+@dataclass
 class Font:
-    def __init__(self, font_path: Path) -> None:
-        font = font_tools.TTFont(font_path)
+    names: T.List[str]
+    is_bold: bool
+    is_italic: bool
 
-        self.names: T.List[str] = []
-        self.is_bold = bool(font["OS/2"].fsSelection & (1 << 5))
-        self.is_italic = bool(font["OS/2"].fsSelection & 1)
+    @staticmethod
+    def from_path(font_path: Path) -> "Font":
+        font = font_tools.TTFont(font_path)
+        names: T.List[str] = []
 
         for record in font["name"].names:
             if (
@@ -133,7 +136,13 @@ class Font:
                 }
                 and record.platformID == TT_PLATFORM_MICROSOFT
             ):
-                self.names.append(record.string.decode("utf-16-be"))
+                names.append(record.string.decode("utf-16-be"))
+
+        return Font(
+            names=names,
+            is_bold=bool(font["OS/2"].fsSelection & (1 << 5)),
+            is_italic=bool(font["OS/2"].fsSelection & 1),
+        )
 
 
 def parse_args() -> argparse.Namespace:
@@ -334,7 +343,7 @@ def get_fonts(font_paths: T.Iterable[Path]) -> T.Dict[Path, Font]:
             font = cache.get(cache_key, None)
             if not font:
                 try:
-                    font = Font(font_path)
+                    font = Font.from_path(font_path)
                 except Exception:
                     continue
                 cache[cache_key] = font
@@ -445,8 +454,8 @@ def main() -> None:
         if not available_font_paths:
             raise RuntimeError("No fonts found")
 
-        used_font_styles = sum(
-            [list(get_used_font_styles(sub)) for sub in subs], []
+        used_font_styles: T.List[StyleInfo] = list(
+            sum([list(get_used_font_styles(sub)) for sub in subs], [])
         )
         source_font_paths = filter_fonts(
             used_font_styles, available_font_paths
