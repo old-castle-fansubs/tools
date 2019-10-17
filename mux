@@ -30,6 +30,41 @@ FONT_DIRS = [
 
 
 @dataclass
+class Video:
+    path: Path
+    length: str  # TODO: int
+
+    @staticmethod
+    def from_path(path: Path) -> "Video":
+        return Video(path=path, length=Video.get_video_length(path))
+
+    @staticmethod
+    def get_video_length(path: Path) -> str:
+        status = subprocess.run(
+            [
+                "ffprobe",
+                "-i",
+                str(path),
+                "-show_entries",
+                "format=duration",
+                "-v",
+                "quiet",
+                "-of",
+                "csv=p=0",
+                "-sexagesimal",
+            ],
+            stdout=subprocess.PIPE,
+        )
+        if status.returncode != 0:
+            raise RuntimeError("Error while getting video length")
+        result = re.match(r"(\d+):(\d+):(\d+)\.(\d+)", status.stdout.decode())
+        assert result
+        groups = list(result.groups())
+        groups[-1] = groups[-1][:3]
+        return "{:02d}:{:02d}:{:02d}.{:03d}".format(*[int(g) for g in groups])
+
+
+@dataclass
 class StyleInfo:
     family: str
     weight: int
@@ -125,32 +160,7 @@ def get_group_name(subs_path: Path) -> str:
     )
 
 
-def get_video_length(path: Path) -> str:
-    status = subprocess.run(
-        [
-            "ffprobe",
-            "-i",
-            str(path),
-            "-show_entries",
-            "format=duration",
-            "-v",
-            "quiet",
-            "-of",
-            "csv=p=0",
-            "-sexagesimal",
-        ],
-        stdout=subprocess.PIPE,
-    )
-    if status.returncode != 0:
-        raise RuntimeError("Error while getting video length")
-    result = re.match(r"(\d+):(\d+):(\d+)\.(\d+)", status.stdout.decode())
-    assert result
-    groups = list(result.groups())
-    groups[-1] = groups[-1][:3]
-    return "{:02d}:{:02d}:{:02d}.{:03d}".format(*[int(g) for g in groups])
-
-
-def get_chapters(subs_path: Path, video_length: str) -> T.Iterable[Chapter]:
+def get_chapters(subs_path: Path, video: Video) -> T.Iterable[Chapter]:
     lines = []
     for line in pysubs2.SSAFile.load(subs_path):
         if line.name == "[chapter]":
@@ -167,7 +177,7 @@ def get_chapters(subs_path: Path, video_length: str) -> T.Iterable[Chapter]:
         try:
             end_time = lines[i + 1][0]
         except IndexError:
-            end_time = video_length
+            end_time = video.length
 
         if title.startswith("#"):
             continue
@@ -374,6 +384,13 @@ def header(title: str) -> T.Any:
     print()
 
 
+def get_video_path(episode: str) -> Path:
+    for path in Path("source").iterdir():
+        if path.stem == episode:
+            return path
+    raise RuntimeError("No video file found")
+
+
 def main() -> None:
     args = parse_args()
     episode = args.ep
@@ -383,11 +400,7 @@ def main() -> None:
     if not source_subs_path.exists():
         raise RuntimeError("No subs file found")
 
-    source_video_path = next(
-        (p for p in Path("source").iterdir() if p.stem == episode), None
-    )
-    if not source_video_path:
-        raise RuntimeError("No video file found")
+    video = Video.from_path(get_video_path(episode))
 
     with header("Collecting fonts"):
         available_font_paths: T.List[Path] = []
@@ -404,8 +417,7 @@ def main() -> None:
         )
 
     with header("Collecting chapters"):
-        video_length = get_video_length(source_video_path)
-        chapters = get_chapters(source_subs_path, video_length)
+        chapters = get_chapters(source_subs_path, video)
         temp_chapters_path = create_chapters_file(chapters)
 
     with header("Collecting metadata"):
@@ -414,7 +426,7 @@ def main() -> None:
 
     with header("Computing target checksum"):
         all_paths: T.Set[Path] = set(
-            [source_subs_path, source_video_path]
+            [source_subs_path, video.path]
         ) | source_font_paths
         if temp_chapters_path:
             all_paths.add(temp_chapters_path)
@@ -427,7 +439,7 @@ def main() -> None:
     with header("Muxing"):
         mux(
             title,
-            source_video_path,
+            video.path,
             source_subs_path,
             temp_chapters_path,
             source_font_paths,
