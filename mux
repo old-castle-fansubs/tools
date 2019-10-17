@@ -29,6 +29,15 @@ FONT_DIRS = [
 ]
 
 
+def get_iso_639_2_lang_code(lang: str) -> str:
+    lang = lang.lower().replace("_", "-")
+    if lang in {"en", "eng", "en-us"}:
+        return "eng"
+    if lang in {"pl", "pol", "pl-pl"}:
+        return "pol"
+    raise ValueError(f"unknown language {lang}")
+
+
 def single(source: T.Iterable[T.Any]) -> T.Any:
     unique = set(source)
     if len(unique) != 1:
@@ -52,6 +61,10 @@ class Subtitles:
             styles=subs.styles,
             lines=list(subs),
         )
+
+    @property
+    def language(self) -> str:
+        return get_iso_639_2_lang_code(self.info.get("Language", "en_US"))
 
 
 @dataclass
@@ -148,7 +161,7 @@ def mux(
     ]
 
     for sub in subs:
-        mux_args.extend([str(sub.path)])
+        mux_args.extend(["--language", f"0:{sub.language}", str(sub.path)])
 
     if chapters_path:
         mux_args.extend(["--chapters", str(chapters_path)])
