@@ -5,7 +5,7 @@ import re
 import sys
 import typing as T
 from pathlib import Path
-from subprocess import run
+from subprocess import PIPE, run
 
 
 class ExtractionError(Exception):
@@ -41,23 +41,18 @@ def extract_track(source_path: Path, track_id: int) -> bytes:
             source_path,
             f"{track_id}:/dev/stdout",
         ],
-        capture_output=True,
+        stdout=PIPE,
         check=True,
     )
     return result.stdout
 
 
 def get_info(source_path: Path) -> T.Any:
-    result = run(
-        ["mkvmerge", "-J", str(source_path)],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    return json.loads(result.stdout)
+    result = run(["mkvmerge", "-J", str(source_path)], check=True, stdout=PIPE)
+    return json.loads(result.stdout.decode())
 
 
-def extract_attachment(source_path: Path, attachment_id: int) -> None:
+def extract_attachment(source_path: Path, attachment_id: int) -> bytes:
     result = run(
         [
             "mkvextract",
@@ -67,8 +62,8 @@ def extract_attachment(source_path: Path, attachment_id: int) -> None:
             source_path,
             f"{attachment_id}:/dev/stdout",
         ],
-        capture_output=True,
         check=True,
+        stdout=PIPE,
     )
     return result.stdout
 
@@ -108,7 +103,7 @@ def check_deps() -> None:
     progs = ["mkvmerge", "mkvextract"]
     for prog in progs:
         try:
-            run([prog, "-h"], check=True, capture_output=True, text=True)
+            run([prog, "-h"], check=True, stdout=PIPE, stderr=PIPE)
         except FileNotFoundError:
             raise ExtractionError(
                 "please install mkvtoolnix before running this script"
