@@ -29,6 +29,13 @@ FONT_DIRS = [
 ]
 
 
+def single(source: T.Iterable[T.Any]) -> T.Any:
+    unique = set(source)
+    if len(unique) != 1:
+        raise ValueError("expected unique value")
+    return next(iter(unique))
+
+
 @dataclass
 class Subtitles:
     path: Path
@@ -125,8 +132,8 @@ def parse_args() -> argparse.Namespace:
 
 def mux(
     title: str,
-    video_path: Path,
-    subs_path: Path,
+    video: Video,
+    subs: T.List[Subtitles],
     chapters_path: T.Optional[Path],
     font_paths: T.Set[Path],
     output_path: Path,
@@ -137,11 +144,11 @@ def mux(
         title,
         "-o",
         str(output_path),
-        str(video_path),
+        str(video.path),
     ]
 
-    if subs_path:
-        mux_args.extend([str(subs_path)])
+    for sub in subs:
+        mux_args.extend([str(sub.path)])
 
     if chapters_path:
         mux_args.extend(["--chapters", str(chapters_path)])
@@ -391,11 +398,14 @@ def header(title: str) -> T.Any:
     print()
 
 
-def get_subs_path(episode: str) -> Path:
-    path = Path("%s.ass" % episode)
-    if not path.exists():
+def get_subs_paths(episode: str) -> T.List[Path]:
+    found: T.List[Path] = []
+    for path in Path().iterdir():
+        if path.stem == episode or path.stem.startswith(f"{episode}-"):
+            found.append(path)
+    if not found:
         raise RuntimeError("No subs file found")
-    return path
+    return found
 
 
 def get_video_path(episode: str) -> Path:
@@ -410,7 +420,7 @@ def main() -> None:
     episode = args.ep
     version = args.version
 
-    subs = Subtitles.from_path(get_subs_path(episode))
+    subs = list(map(Subtitles.from_path, get_subs_paths(episode)))
     video = Video.from_path(get_video_path(episode))
 
     with header("Collecting fonts"):
@@ -422,22 +432,24 @@ def main() -> None:
         if not available_font_paths:
             raise RuntimeError("No fonts found")
 
-        used_font_styles = get_used_font_styles(subs)
+        used_font_styles = sum(
+            [list(get_used_font_styles(sub)) for sub in subs], []
+        )
         source_font_paths = filter_fonts(
             used_font_styles, available_font_paths
         )
 
     with header("Collecting chapters"):
-        chapters = get_chapters(subs, video)
+        chapters = sum([list(get_chapters(sub, video)) for sub in subs], [])
         temp_chapters_path = create_chapters_file(chapters)
 
     with header("Collecting metadata"):
-        group_name = get_group_name(subs)
-        title = get_title(subs)
+        group_name = single(map(get_group_name, subs))
+        title = single(map(get_title, subs))
 
     with header("Computing target checksum"):
         all_paths: T.Set[Path] = set(
-            [subs.path, video.path]
+            [sub.path for sub in subs] + [video.path]
         ) | source_font_paths
         if temp_chapters_path:
             all_paths.add(temp_chapters_path)
@@ -450,8 +462,8 @@ def main() -> None:
     with header("Muxing"):
         mux(
             title,
-            video.path,
-            subs.path,
+            video,
+            subs,
             temp_chapters_path,
             source_font_paths,
             target_video_path,
