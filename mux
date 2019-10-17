@@ -477,6 +477,8 @@ def main() -> None:
     subs = list(map(Subtitles.from_path, get_subs_paths(episode)))
     video = Video.from_path(get_video_path(episode))
 
+    subs.sort(key=lambda sub: sub.language == "eng", reverse=True)
+
     with header("Collecting fonts"):
         available_font_paths: T.List[Path] = []
         for directory in FONT_DIRS:
