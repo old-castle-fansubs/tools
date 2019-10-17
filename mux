@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 import argparse
 import contextlib
+import itertools
 import re
 import shelve
 import subprocess
@@ -14,6 +15,18 @@ import pysubs2
 import xdg
 
 import ass_tag_parser
+
+
+def ms_to_str(ms: int) -> str:
+    return pysubs2.time.ms_to_str(ms, fractions=True)
+
+
+def pairwise(source: T.Iterable[T.Any]) -> T.Iterable[T.Any]:
+    "s -> (s0,s1), (s1,s2), (s2, s3), ..."
+    a, b = itertools.tee(source)
+    next(b, None)
+    return zip(a, b)
+
 
 TT_NAME_ID_FONT_FAMILY = 1
 TT_NAME_ID_FULL_NAME = 4
@@ -108,11 +121,17 @@ class StyleInfo:
 
 
 @dataclass
+class ChapterTitle:
+    text: str
+    language: str
+
+
+@dataclass
 class Chapter:
     start_time: int
     end_time: int
-    title: str
-    hidden: bool
+    is_hidden: bool
+    titles: T.List[ChapterTitle]
 
 
 @dataclass
@@ -198,31 +217,40 @@ def get_group_name(subs: Subtitles) -> str:
     return subs.info.get("Group", "OldCastle").replace(" & ", "-")
 
 
-def get_chapters(subs: Subtitles, video: Video) -> T.Iterable[Chapter]:
-    lines = []
-    for line in subs.lines:
-        if line.name == "[chapter]":
-            title = "".join(
-                chunk.text
-                for chunk in ass_tag_parser.parse_ass(line.text)
-                if isinstance(chunk, ass_tag_parser.AssText)
-            )
-            lines.append(
-                (pysubs2.time.ms_to_str(line.start, fractions=True), title)
-            )
+def get_chapters(subs: T.List[Subtitles], video: Video) -> T.Iterable[Chapter]:
+    lines: T.Dict[int, T.Dict[str, str]] = {}
+    for sub in subs:
+        for line in sub.lines:
+            if line.name == "[chapter]":
+                title = "".join(
+                    chunk.text
+                    for chunk in ass_tag_parser.parse_ass(line.text)
+                    if isinstance(chunk, ass_tag_parser.AssText)
+                )
+                if line.start not in lines:
+                    lines[line.start] = {}
+                lines[line.start][sub.language] = title
 
-    for i, (start_time, title) in enumerate(lines):
-        try:
-            end_time = lines[i + 1][0]
-        except IndexError:
-            end_time = pysubs2.time.ms_to_str(video.length)
+    lines[video.length] = {}
 
-        if title.startswith("#"):
+    for ((start_time, titles), (end_time, _)) in pairwise(lines.items()):
+        if any(text.startswith("#") for lang, text in titles.items()):
             continue
-        if title.startswith("$"):
-            yield Chapter(start_time, end_time, title[1:], True)
+        if any(text.startswith("$") for lang, text in titles.items()):
+            titles = {lang: text[1:] for lang, text in titles.items()}
+            is_hidden = True
         else:
-            yield Chapter(start_time, end_time, title, False)
+            is_hidden = False
+
+        yield Chapter(
+            start_time=start_time,
+            end_time=end_time,
+            is_hidden=is_hidden,
+            titles=[
+                ChapterTitle(language=language, text=text)
+                for (language, text) in titles.items()
+            ],
+        )
 
 
 def create_chapters_file(chapters: T.Iterable[Chapter]) -> T.Optional[Path]:
@@ -239,24 +267,28 @@ def create_chapters_file(chapters: T.Iterable[Chapter]) -> T.Optional[Path]:
         handle.write("\t\t<EditionFlagOrdered>1</EditionFlagOrdered>\n")
         handle.write("\t\t<EditionFlagHidden>0</EditionFlagHidden>\n")
         for chapter in chapters:
+            handle.write("\t\t<ChapterAtom>\n")
             handle.write(
-                "\t\t<ChapterAtom>\n"
                 "\t\t\t<ChapterTimeStart>{start_time}</ChapterTimeStart>\n"
                 "\t\t\t<ChapterTimeEnd>{end_time}</ChapterTimeEnd>\n"
                 "\t\t\t<ChapterFlagEnabled>{enabled:d}</ChapterFlagEnabled>\n"
-                "\t\t\t<ChapterFlagHidden>{hidden:d}</ChapterFlagHidden>\n"
-                "\t\t\t<ChapterDisplay>\n"
-                "\t\t\t\t<ChapterString>{title}</ChapterString>\n"
-                "\t\t\t\t<ChapterLanguage>eng</ChapterLanguage>\n"
-                "\t\t\t</ChapterDisplay>\n"
-                "\t\t</ChapterAtom>\n".format(
+                "\t\t\t<ChapterFlagHidden>{is_hidden:d}</ChapterFlagHidden>\n".format(
                     enabled=True,
-                    start_time=chapter.start_time,
-                    end_time=chapter.end_time,
-                    title=chapter.title,
-                    hidden=chapter.hidden,
+                    start_time=ms_to_str(chapter.start_time),
+                    end_time=ms_to_str(chapter.end_time),
+                    is_hidden=chapter.is_hidden,
                 )
             )
+            for title in chapter.titles:
+                handle.write(
+                    "\t\t\t<ChapterDisplay>\n"
+                    "\t\t\t\t<ChapterString>{text}</ChapterString>\n"
+                    "\t\t\t\t<ChapterLanguage>{language}</ChapterLanguage>\n"
+                    "\t\t\t</ChapterDisplay>\n".format(
+                        text=title.text, language=title.language
+                    )
+                )
+            handle.write("\t\t</ChapterAtom>\n")
         handle.write("\t</EditionEntry>\n")
         handle.write("</Chapters>")
     return chapters_path
@@ -462,7 +494,7 @@ def main() -> None:
         )
 
     with header("Collecting chapters"):
-        chapters = sum([list(get_chapters(sub, video)) for sub in subs], [])
+        chapters = list(get_chapters(subs, video))
         temp_chapters_path = create_chapters_file(chapters)
 
     with header("Collecting metadata"):
