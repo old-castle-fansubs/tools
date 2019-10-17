@@ -495,6 +495,15 @@ def main() -> None:
 
     with header("Collecting chapters"):
         chapters = list(get_chapters(subs, video))
+        for chapter in chapters:
+            flags = "-H"[chapter.is_hidden]
+            print(
+                f"{flags} "
+                f"{ms_to_str(chapter.start_time)}.."
+                f"{ms_to_str(chapter.end_time)}"
+            )
+            for title in chapter.titles:
+                print(f"  - [{title.language}] {title.text}")
         temp_chapters_path = create_chapters_file(chapters)
 
     with header("Collecting metadata"):
