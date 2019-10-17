@@ -30,6 +30,24 @@ FONT_DIRS = [
 
 
 @dataclass
+class Subtitles:
+    path: Path
+    info: T.Dict[str, str]
+    styles: T.Dict[str, T.Any]
+    lines: T.List[T.Any]
+
+    @staticmethod
+    def from_path(path: Path) -> "Subtitles":
+        subs = pysubs2.SSAFile.load(path)
+        return Subtitles(
+            path=path,
+            info=dict(subs.info),
+            styles=subs.styles,
+            lines=list(subs),
+        )
+
+
+@dataclass
 class Video:
     path: Path
     length: int
@@ -143,21 +161,17 @@ def mux(
         raise RuntimeError("Error while muxing")
 
 
-def get_title(subs_path: Path) -> str:
-    return T.cast(str, dict(pysubs2.SSAFile.load(subs_path).info)["Title"])
+def get_title(subs: Subtitles) -> str:
+    return subs.info["Title"]
 
 
-def get_group_name(subs_path: Path) -> str:
-    return (
-        dict(pysubs2.SSAFile.load(subs_path).info)
-        .get("Group", "OldCastle")
-        .replace(" & ", "-")
-    )
+def get_group_name(subs: Subtitles) -> str:
+    return subs.info.get("Group", "OldCastle").replace(" & ", "-")
 
 
-def get_chapters(subs_path: Path, video: Video) -> T.Iterable[Chapter]:
+def get_chapters(subs: Subtitles, video: Video) -> T.Iterable[Chapter]:
     lines = []
-    for line in pysubs2.SSAFile.load(subs_path):
+    for line in subs.lines:
         if line.name == "[chapter]":
             title = "".join(
                 chunk.text
@@ -239,9 +253,7 @@ def bold_to_weight(value: T.Union[int, bool]) -> int:
     return value
 
 
-def get_used_font_styles(subs_path: Path) -> T.Iterable[StyleInfo]:
-    subs = pysubs2.SSAFile.load(subs_path)
-
+def get_used_font_styles(subs: Subtitles) -> T.Iterable[StyleInfo]:
     style_name_to_style_info = {
         style_name: StyleInfo(
             style.fontname, bold_to_weight(style.bold), style.italic
@@ -250,7 +262,7 @@ def get_used_font_styles(subs_path: Path) -> T.Iterable[StyleInfo]:
     }
 
     used_font_styles = set()
-    for i, line in enumerate(subs):
+    for i, line in enumerate(subs.lines):
         if line.is_comment:
             continue
 
@@ -379,6 +391,13 @@ def header(title: str) -> T.Any:
     print()
 
 
+def get_subs_path(episode: str) -> Path:
+    path = Path("%s.ass" % episode)
+    if not path.exists():
+        raise RuntimeError("No subs file found")
+    return path
+
+
 def get_video_path(episode: str) -> Path:
     for path in Path("source").iterdir():
         if path.stem == episode:
@@ -391,10 +410,7 @@ def main() -> None:
     episode = args.ep
     version = args.version
 
-    source_subs_path = Path("%s.ass" % episode)
-    if not source_subs_path.exists():
-        raise RuntimeError("No subs file found")
-
+    subs = Subtitles.from_path(get_subs_path(episode))
     video = Video.from_path(get_video_path(episode))
 
     with header("Collecting fonts"):
@@ -406,22 +422,22 @@ def main() -> None:
         if not available_font_paths:
             raise RuntimeError("No fonts found")
 
-        used_font_styles = get_used_font_styles(source_subs_path)
+        used_font_styles = get_used_font_styles(subs)
         source_font_paths = filter_fonts(
             used_font_styles, available_font_paths
         )
 
     with header("Collecting chapters"):
-        chapters = get_chapters(source_subs_path, video)
+        chapters = get_chapters(subs, video)
         temp_chapters_path = create_chapters_file(chapters)
 
     with header("Collecting metadata"):
-        group_name = get_group_name(source_subs_path)
-        title = get_title(source_subs_path)
+        group_name = get_group_name(subs)
+        title = get_title(subs)
 
     with header("Computing target checksum"):
         all_paths: T.Set[Path] = set(
-            [source_subs_path, video.path]
+            [subs.path, video.path]
         ) | source_font_paths
         if temp_chapters_path:
             all_paths.add(temp_chapters_path)
@@ -435,7 +451,7 @@ def main() -> None:
         mux(
             title,
             video.path,
-            source_subs_path,
+            subs.path,
             temp_chapters_path,
             source_font_paths,
             target_video_path,
