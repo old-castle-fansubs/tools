@@ -258,8 +258,8 @@ def create_chapters_file(chapters: T.Iterable[Chapter]) -> T.Optional[Path]:
     if not chapters:
         return None
     chapters_path = Path("chapters.tmp")
-    with chapters_path.open("w") as handle:
-        handle.write('<?xml version="1.0" encoding="ISO-8859-1"?>\n')
+    with chapters_path.open("w", encoding="utf-8") as handle:
+        handle.write('<?xml version="1.0" encoding="UTF-8"?>\n')
         handle.write('<!DOCTYPE Chapters SYSTEM "matroskachapters.dtd">\n')
         handle.write("<Chapters>\n")
         handle.write("\t<EditionEntry>\n")
