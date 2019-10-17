@@ -32,14 +32,14 @@ FONT_DIRS = [
 @dataclass
 class Video:
     path: Path
-    length: str  # TODO: int
+    length: int
 
     @staticmethod
     def from_path(path: Path) -> "Video":
         return Video(path=path, length=Video.get_video_length(path))
 
     @staticmethod
-    def get_video_length(path: Path) -> str:
+    def get_video_length(path: Path) -> int:
         status = subprocess.run(
             [
                 "ffprobe",
@@ -50,18 +50,13 @@ class Video:
                 "-v",
                 "quiet",
                 "-of",
-                "csv=p=0",
-                "-sexagesimal",
+                "default=noprint_wrappers=1:nokey=1",
             ],
             stdout=subprocess.PIPE,
         )
         if status.returncode != 0:
             raise RuntimeError("Error while getting video length")
-        result = re.match(r"(\d+):(\d+):(\d+)\.(\d+)", status.stdout.decode())
-        assert result
-        groups = list(result.groups())
-        groups[-1] = groups[-1][:3]
-        return "{:02d}:{:02d}:{:02d}.{:03d}".format(*[int(g) for g in groups])
+        return int(float(status.stdout.decode().strip()) * 1000)
 
 
 @dataclass
@@ -177,7 +172,7 @@ def get_chapters(subs_path: Path, video: Video) -> T.Iterable[Chapter]:
         try:
             end_time = lines[i + 1][0]
         except IndexError:
-            end_time = video.length
+            end_time = pysubs2.time.ms_to_str(video.length)
 
         if title.startswith("#"):
             continue
