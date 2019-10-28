@@ -455,7 +455,11 @@ def header(title: str) -> T.Any:
 def get_subs_paths(episode: str) -> T.List[Path]:
     found: T.List[Path] = []
     for path in Path().iterdir():
-        if path.stem == episode or path.stem.startswith(f"{episode}-"):
+        if (
+            path.stem == episode
+            or path.stem.startswith(f"{episode}-")
+            or path.stem.endswith(f"-{episode}")
+        ):
             found.append(path)
     if not found:
         raise RuntimeError("No subs file found")
