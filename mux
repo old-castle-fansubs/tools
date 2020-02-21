@@ -48,6 +48,10 @@ def get_iso_639_2_lang_code(lang: str) -> str:
         return "eng"
     if lang in {"pl", "pol", "pl-pl"}:
         return "pol"
+    if lang in {"ro"}:
+        return "rum"
+    if lang in {"nl"}:
+        return "dut"
     raise ValueError(f"unknown language {lang}")
 
 
