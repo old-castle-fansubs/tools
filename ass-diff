@@ -1,0 +1,110 @@
+#!/usr/bin/env python3
+import argparse
+import difflib
+import sys
+import typing as T
+
+import git  # python3 -m pip install --user gitpython
+
+from bubblesub.fmt.ass.event import AssEvent
+from bubblesub.fmt.ass.reader import read_ass
+
+
+def parse_args() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("commit", default="HEAD", nargs="?")
+    return parser.parse_args()
+
+
+def print_changes(
+    event1: AssEvent, other_events: T.Iterable[AssEvent]
+) -> AssEvent:
+    for event2 in other_events:
+        if (
+            event1.text == event2.text
+            and event1.start == event2.start
+            and event1.end == event2.end
+            and event1.style == event2.style
+        ):
+            return event2
+
+    print(f"Line #{event1.number}")
+    for event2 in other_events:
+        if (
+            event1.text == event2.text
+            and event1.style == event2.style
+            and (event1.start != event2.start or event1.end != event2.end)
+        ):
+            print("    Fixed timing")
+            print()
+            return event2
+
+    for event2 in other_events:
+        if (
+            event1.start == event2.start
+            and event1.end == event2.end
+            and event1.style == event2.style
+            and event1.text != event2.text
+        ):
+            print(f"    {event1.text} →")
+            print(f"    {event2.text}")
+            print()
+            return event2
+
+    print("    Unknown change")
+    print()
+    return None
+
+
+def main() -> None:
+    args = parse_args()
+    repo = git.Repo(search_parent_directories=True)
+
+    commit1 = repo.commit(args.commit + "^")
+    commit2 = repo.commit(args.commit)
+    diff_index = commit1.diff(commit2)
+
+    for diff_item in diff_index.iter_change_type("M"):
+        a_blob = diff_item.a_blob.data_stream.read().decode("utf-8")
+        b_blob = diff_item.b_blob.data_stream.read().decode("utf-8")
+
+        a_ass = read_ass(a_blob)
+        b_ass = read_ass(b_blob)
+
+        handled_b_events = []
+        for event1 in a_ass.events:
+            event = print_changes(event1, b_ass.events)
+            if event:
+                handled_b_events.append(event)
+
+        for event2 in b_ass.events:
+            if event2 in handled_b_events:
+                continue
+            event1a = list(
+                sorted(
+                    [
+                        event1
+                        for event1 in a_ass.events
+                        if event1.start < event2.start
+                    ],
+                    key=lambda event: event.start,
+                )
+            )[-1]
+            event1b = list(
+                sorted(
+                    [
+                        event1
+                        for event1 in a_ass.events
+                        if event1.start >= event2.start
+                    ],
+                    key=lambda event: event.start,
+                )
+            )[0]
+            print(f"Between line #{event1a.number} and #{event1b.number}")
+            print("    Missing line →")
+            print(f"    {event2.text}")
+            print()
+
+
+if __name__ == "__main__":
+    main()
