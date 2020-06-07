@@ -65,6 +65,14 @@ def main() -> None:
     diff_index = commit1.diff(commit2)
 
     for diff_item in diff_index.iter_change_type("M"):
+        if not all(
+            [
+                diff_item.a_blob.path.endswith(".ass"),
+                diff_item.b_blob.path.endswith(".ass"),
+            ]
+        ):
+            continue
+
         a_blob = diff_item.a_blob.data_stream.read().decode("utf-8")
         b_blob = diff_item.b_blob.data_stream.read().decode("utf-8")
 
