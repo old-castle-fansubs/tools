@@ -75,6 +75,12 @@ class LineAddedChange(BaseChange):
 def parse_args() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("commit", default="HEAD", nargs="?")
+    parser.add_argument(
+        "-n",
+        action="store_true",
+        dest="keep_newlines",
+        help="don't convert newlines"
+    )
     return parser.parse_args()
 
 
@@ -130,6 +136,12 @@ def collect_changes(a_ass: AssFile, b_ass: AssFile) -> T.Iterable[BaseChange]:
         yield LineAddedChange(event1a, event1b, event2)
 
 
+def ass_postprocess(ass_file: AssFile, args: argparse.Namespace) -> None:
+    if not args.keep_newlines:
+        for event in ass_file.events:
+            event.text = event.text.replace(r"\N", " ")
+
+
 def main() -> None:
     args = parse_args()
     repo = git.Repo(search_parent_directories=True)
@@ -152,6 +164,8 @@ def main() -> None:
 
         a_ass = read_ass(a_blob)
         b_ass = read_ass(b_blob)
+        ass_postprocess(a_ass, args)
+        ass_postprocess(b_ass, args)
 
         for change in collect_changes(a_ass, b_ass):
             print(change)
