@@ -1,13 +1,75 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3.8
 import argparse
 import difflib
 import sys
 import typing as T
+from dataclasses import dataclass
 
 import git  # python3 -m pip install --user gitpython
 
 from bubblesub.fmt.ass.event import AssEvent
+from bubblesub.fmt.ass.file import AssFile
 from bubblesub.fmt.ass.reader import read_ass
+
+
+def first(source: T.Iterable[T.Any]) -> T.Any:
+    return next(source, None)
+
+
+def last(source: T.Iterable[T.Any]) -> T.Any:
+    item = None
+    for item in source:
+        pass
+    return item
+
+
+class BaseChange:
+    pass
+
+
+@dataclass
+class LineRemovedChange(BaseChange):
+    event: AssEvent
+
+    def __str__(self) -> str:
+        return f"Line #{self.event.number}\n    Removed\n"
+
+
+@dataclass
+class LineChangedTextChange(BaseChange):
+    old_event: AssEvent
+    new_event: AssEvent
+
+    def __str__(self) -> str:
+        return (
+            f"Line #{self.old_event.number}\n"
+            f"    {self.old_event.text} →\n"
+            f"    {self.new_event.text}\n"
+        )
+
+
+@dataclass
+class LineChangedTimeChange(BaseChange):
+    old_event: AssEvent
+    new_event: AssEvent
+
+    def __str__(self) -> str:
+        return f"Line #{self.old_event.number}\n    Fixed timing\n"
+
+
+@dataclass
+class LineAddedChange(BaseChange):
+    after_event: AssEvent
+    before_event: AssEvent
+    new_event: AssEvent
+
+    def __str__(self) -> str:
+        return (
+            f"Between line #{self.after_event.number} "
+            f"and #{self.before_event.number}\n"
+            f"    Missing line →\n"
+            f"    {self.new_event.text}\n"
+        )
 
 
 def parse_args() -> None:
@@ -16,44 +78,56 @@ def parse_args() -> None:
     return parser.parse_args()
 
 
-def print_changes(
-    event1: AssEvent, other_events: T.Iterable[AssEvent]
-) -> AssEvent:
-    for event2 in other_events:
-        if (
-            event1.text == event2.text
-            and event1.start == event2.start
-            and event1.end == event2.end
-            and event1.style == event2.style
-        ):
-            return event2
+def collect_changes(a_ass: AssFile, b_ass: AssFile) -> T.Iterable[BaseChange]:
+    handled_b_events: T.Set[AssEvent] = set()
 
-    print(f"Line #{event1.number}")
-    for event2 in other_events:
-        if (
-            event1.text == event2.text
-            and event1.style == event2.style
-            and (event1.start != event2.start or event1.end != event2.end)
+    for event1 in a_ass.events:
+        if event2 := first(
+            e
+            for e in b_ass.events
+            if event1.text == e.text
+            and event1.start == e.start
+            and event1.end == e.end
+            and event1.style == e.style
         ):
-            print("    Fixed timing")
-            print()
-            return event2
+            pass
 
-    for event2 in other_events:
-        if (
-            event1.start == event2.start
-            and event1.end == event2.end
-            and event1.style == event2.style
-            and event1.text != event2.text
+        elif event2 := first(
+            e
+            for e in b_ass.events
+            if (
+                event1.text == e.text
+                and event1.style == e.style
+                and (event1.start != e.start or event1.end != e.end)
+            )
         ):
-            print(f"    {event1.text} →")
-            print(f"    {event2.text}")
-            print()
-            return event2
+            yield LineChangedTimeChange(event1, event2)
 
-    print("    Unknown change")
-    print()
-    return None
+        elif event2 := first(
+            e
+            for e in b_ass.events
+            if (
+                event1.start == e.start
+                and event1.end == e.end
+                and event1.style == e.style
+                and event1.text != e.text
+            )
+        ):
+            yield LineChangedTextChange(event1, event2)
+
+        else:
+            yield LineRemovedChange(event1)
+
+        if event2:
+            handled_b_events.add(event2)
+
+    sorted_a_events = list(sorted(a_ass.events, key=lambda e: e.start))
+    for event2 in b_ass.events:
+        if event2 in handled_b_events:
+            continue
+        event1a = first(e for e in sorted_a_events if e.start < event2.start)
+        event1b = last(e for e in sorted_a_events if e.start >= event2.start)
+        yield LineAddedChange(event1a, event1b, event2)
 
 
 def main() -> None:
@@ -79,39 +153,8 @@ def main() -> None:
         a_ass = read_ass(a_blob)
         b_ass = read_ass(b_blob)
 
-        handled_b_events = []
-        for event1 in a_ass.events:
-            event = print_changes(event1, b_ass.events)
-            if event:
-                handled_b_events.append(event)
-
-        for event2 in b_ass.events:
-            if event2 in handled_b_events:
-                continue
-            event1a = list(
-                sorted(
-                    [
-                        event1
-                        for event1 in a_ass.events
-                        if event1.start < event2.start
-                    ],
-                    key=lambda event: event.start,
-                )
-            )[-1]
-            event1b = list(
-                sorted(
-                    [
-                        event1
-                        for event1 in a_ass.events
-                        if event1.start >= event2.start
-                    ],
-                    key=lambda event: event.start,
-                )
-            )[0]
-            print(f"Between line #{event1a.number} and #{event1b.number}")
-            print("    Missing line →")
-            print(f"    {event2.text}")
-            print()
+        for change in collect_changes(a_ass, b_ass):
+            print(change)
 
 
 if __name__ == "__main__":
