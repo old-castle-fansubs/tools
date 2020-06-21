@@ -24,12 +24,18 @@ def last(source: T.Iterable[T.Any]) -> T.Any:
 
 
 class BaseChange:
-    pass
+    @property
+    def sort_key(self) -> T.Any:
+        raise NotImplementedError('not implemented')
 
 
 @dataclass
 class LineRemovedChange(BaseChange):
     event: AssEvent
+
+    @property
+    def sort_key(self) -> T.Any:
+        return self.event.number
 
     def __str__(self) -> str:
         return f"Line #{self.event.number}\n    Removed\n"
@@ -39,6 +45,10 @@ class LineRemovedChange(BaseChange):
 class LineChangedTextChange(BaseChange):
     old_event: AssEvent
     new_event: AssEvent
+
+    @property
+    def sort_key(self) -> T.Any:
+        return self.old_event.number
 
     def __str__(self) -> str:
         return (
@@ -53,6 +63,10 @@ class LineChangedTimeChange(BaseChange):
     old_event: AssEvent
     new_event: AssEvent
 
+    @property
+    def sort_key(self) -> T.Any:
+        return self.old_event.number
+
     def __str__(self) -> str:
         return f"Line #{self.old_event.number}\n    Fixed timing\n"
 
@@ -62,6 +76,10 @@ class LineAddedChange(BaseChange):
     after_event: AssEvent
     before_event: AssEvent
     new_event: AssEvent
+
+    @property
+    def sort_key(self) -> T.Any:
+        return self.after_event.number
 
     def __str__(self) -> str:
         return (
@@ -167,7 +185,9 @@ def main() -> None:
         ass_postprocess(a_ass, args)
         ass_postprocess(b_ass, args)
 
-        for change in collect_changes(a_ass, b_ass):
+        for change in sorted(
+            collect_changes(a_ass, b_ass), key=lambda change: change.sort_key
+        ):
             print(change)
 
 
