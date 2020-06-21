@@ -131,8 +131,8 @@ def collect_changes(a_ass: AssFile, b_ass: AssFile) -> T.Iterable[BaseChange]:
     for event2 in b_ass.events:
         if event2 in handled_b_events:
             continue
-        event1a = first(e for e in sorted_a_events if e.start < event2.start)
-        event1b = last(e for e in sorted_a_events if e.start >= event2.start)
+        event1a = last(e for e in sorted_a_events if e.start < event2.start)
+        event1b = first(e for e in sorted_a_events if e.start >= event2.start)
         yield LineAddedChange(event1a, event1b, event2)
 
 
