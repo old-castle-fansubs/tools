@@ -1,9 +1,11 @@
 #!/usr/bin/env python3.8
 import argparse
 import difflib
+import re
 import sys
 import typing as T
 from dataclasses import dataclass
+from pathlib import Path
 
 import git  # python3 -m pip install --user gitpython
 
@@ -176,6 +178,14 @@ def main() -> None:
             ]
         ):
             continue
+
+        ep_number = int(
+            re.search(r'(\d+)', Path(diff_item.a_path).name).group(1)
+        )
+        header = f'Episode {ep_number:02d}'
+        print(header)
+        print('-' * len(header))
+        print()
 
         a_blob = diff_item.a_blob.data_stream.read().decode("utf-8")
         b_blob = diff_item.b_blob.data_stream.read().decode("utf-8")
