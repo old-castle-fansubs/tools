@@ -40,7 +40,11 @@ class LineRemovedChange(BaseChange):
         return self.event.number
 
     def __str__(self) -> str:
-        return f"Line #{self.event.number}\n    Removed\n"
+        return (
+            f"Line #{self.event.number}\n"
+            f"    {self.event.text} →"
+            f"\n    Removed\n"
+        )
 
 
 @dataclass
