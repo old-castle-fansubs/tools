@@ -10,11 +10,10 @@ import zlib
 from dataclasses import dataclass
 from pathlib import Path
 
+import ass_tag_parser
 import fontTools.ttLib as font_tools
 import pysubs2
 import xdg
-
-import ass_tag_parser
 
 
 def ms_to_str(ms: int) -> str:
@@ -48,9 +47,9 @@ def get_iso_639_2_lang_code(lang: str) -> str:
         return "eng"
     if lang in {"pl", "pol", "pl-pl"}:
         return "pol"
-    if lang in {"ro"}:
+    if lang in {"ro", "ro-ro"}:
         return "rum"
-    if lang in {"nl"}:
+    if lang in {"nl", "nl-nl"}:
         return "dut"
     raise ValueError(f"unknown language {lang}")
 
