@@ -517,12 +517,14 @@ def main() -> None:
 
     with header("Collecting metadata"):
         group_name = single(map(get_group_name, subs))
-        title = single(map(get_title, subs))
+        eng_subs = [sub for sub in subs if sub.language == "eng"]
+        pol_subs = [sub for sub in subs if sub.language == "pol"]
+        title = single(map(get_title, eng_subs if len(eng_subs) else pol_subs))
 
     with header("Computing target checksum"):
-        all_paths: T.Set[Path] = set(
-            [sub.path for sub in subs] + [video.path]
-        ) | source_font_paths
+        all_paths: T.Set[Path] = (
+            set([sub.path for sub in subs] + [video.path]) | source_font_paths
+        )
         if temp_chapters_path:
             all_paths.add(temp_chapters_path)
 
