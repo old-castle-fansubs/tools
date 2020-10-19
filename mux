@@ -476,6 +476,26 @@ def get_video_path(episode: str) -> Path:
     raise RuntimeError("No video file found")
 
 
+def sort_subs(subs: T.Iterable[Subtitles]) -> T.Iterable[Subtitles]:
+    lang_priorities = ["eng", "pol"]
+
+    other_subs = list(
+        sorted(
+            (sub for sub in subs if sub.language not in lang_priorities),
+            key=lambda sub: sub.language,
+        )
+    )
+
+    priority_subs = list(
+        sorted(
+            (sub for sub in subs if sub.language in lang_priorities),
+            key=lambda sub: lang_priorities.index(sub.language),
+        )
+    )
+
+    return priority_subs + other_subs
+
+
 def main() -> None:
     args = parse_args()
     episode = args.ep
@@ -484,7 +504,7 @@ def main() -> None:
     subs = list(map(Subtitles.from_path, get_subs_paths(episode)))
     video = Video.from_path(get_video_path(episode))
 
-    subs.sort(key=lambda sub: sub.language == "eng", reverse=True)
+    subs = sort_subs(subs)
 
     with header("Collecting fonts"):
         available_font_paths: T.List[Path] = []
