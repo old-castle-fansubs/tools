@@ -23,7 +23,8 @@ logger = logging.getLogger(__file__)
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("source", type=Path)
-    parser.add_argument("-o", "--output", type=Path, required=True)
+    parser.add_argument("-o", "--output-ass", type=Path, required=True)
+    parser.add_argument("-O", "--output-dir", type=Path)
     parser.add_argument("--invert", action="store_true")
     return parser.parse_args()
 
@@ -652,7 +653,11 @@ def main() -> None:
             image = decode_vobsub_picture(
                 idx, IoWrapper(sub_file_handle), invert=args.invert
             )
-            # image.save(Path(f"~/mysubs{i:04d}.png").expanduser())
+            if args.output_dir:
+                image.save(
+                    args.output_dir.expanduser()
+                    / f"{sub_path.stem}-{i+1:04d}.png"
+                )
             text = pytesseract.image_to_string(image)
 
             ass_file.events.append(
@@ -666,7 +671,7 @@ def main() -> None:
             print(text)
             print(flush=True)
 
-    with args.output.open("w") as handle:
+    with args.output_ass.open("w") as handle:
         write_ass(ass_file, handle)
 
 
