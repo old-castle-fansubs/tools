@@ -24,6 +24,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("source", type=Path)
     parser.add_argument("-o", "--output", type=Path, required=True)
+    parser.add_argument("--invert", action="store_true")
     return parser.parse_args()
 
 
@@ -282,7 +283,9 @@ def decode_vobsub_line(
                     index += 1
 
 
-def decode_vobsub_picture(idx: SubsIndex, handle: IoWrapper):
+def decode_vobsub_picture(
+    idx: SubsIndex, handle: IoWrapper, invert: bool
+) -> T.Tuple[PIL.Image.Image, int]:
     ofs = handle.tell()
     ctrl_ofs = -1
     next_ofs = 0
@@ -599,10 +602,18 @@ def decode_vobsub_picture(idx: SubsIndex, handle: IoWrapper):
         (height // 2) * width,
     )
 
-    palmap_r = np.array([255 - idx.palette[pal[c]].red for c in range(4)])
-    palmap_g = np.array([255 - idx.palette[pal[c]].green for c in range(4)])
-    palmap_b = np.array([255 - idx.palette[pal[c]].blue for c in range(4)])
+    if invert:
+        pal[1], pal[3] = pal[3], pal[1]
+
+    palmap_r = np.array([idx.palette[pal[c]].red for c in range(4)])
+    palmap_g = np.array([idx.palette[pal[c]].green for c in range(4)])
+    palmap_b = np.array([idx.palette[pal[c]].blue for c in range(4)])
     palmap_a = np.array([((alpha[c] * 0xFF) // 0xF) for c in range(4)])
+
+    if palmap_a[0] == 0:
+        palmap_r[0] = palmap_r[3]
+        palmap_g[0] = palmap_g[3]
+        palmap_b[0] = palmap_b[3]
 
     final_pixels = np.zeros(4 * width * height, dtype="b")
     final_pixels[::4] = palmap_r[decoded_pixels]
@@ -638,7 +649,9 @@ def main() -> None:
             print(item.timestamp)
 
             sub_file_handle.seek(item.file_pos)
-            image = decode_vobsub_picture(idx, IoWrapper(sub_file_handle))
+            image = decode_vobsub_picture(
+                idx, IoWrapper(sub_file_handle), invert=args.invert
+            )
             # image.save(Path(f"~/mysubs{i:04d}.png").expanduser())
             text = pytesseract.image_to_string(image)
 
