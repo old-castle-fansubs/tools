@@ -420,7 +420,7 @@ def decode_vobsub_picture(
 
     # parse control header
     index = 0
-    end_seq_ofs = ctrl_header_handle.read_u8() - ctrl_ofs_rel - 2
+    end_seq_ofs = ctrl_header_handle.read_u16() - ctrl_ofs_rel - 2
     if end_seq_ofs < 0 or end_seq_ofs > ctrl_size:
         logger.warning("Invalid end sequence offset -> no end time (1)")
         end_seq_ofs = ctrl_size
@@ -537,14 +537,14 @@ def decode_vobsub_picture(
         while next_index != index:
             index = next_index
             ctrl_header_handle.seek(index)
-            delay = ctrl_header_handle.read_u16() * 1024
+            delay = ctrl_header_handle.read_u16() * 10
+            ctrl_header_handle.seek(index + 2)
             next_index = ctrl_header_handle.read_u16() - ctrl_ofs_rel - 2
             ctrl_seq_count += 1
         if ctrl_seq_count > 2:
             logger.warning(
                 "Control sequence(s) ignored - result may be erratic"
             )
-        logger.info("got duration", delay)
     else:
         logger.warning("Duration information not found")
 
@@ -625,7 +625,7 @@ def decode_vobsub_picture(
     image = PIL.Image.frombytes(
         mode="RGBA", size=(width, height), data=bytes(final_pixels)
     )
-    return image
+    return image, delay
 
 
 def main() -> None:
@@ -650,7 +650,7 @@ def main() -> None:
             print(item.timestamp)
 
             sub_file_handle.seek(item.file_pos)
-            image = decode_vobsub_picture(
+            image, delay = decode_vobsub_picture(
                 idx, IoWrapper(sub_file_handle), invert=args.invert
             )
             if args.output_dir:
@@ -663,7 +663,7 @@ def main() -> None:
             ass_file.events.append(
                 AssEvent(
                     start=item.timestamp.total_seconds() * 1000,
-                    end=item.timestamp.total_seconds() * 1000 + 2000,
+                    end=item.timestamp.total_seconds() * 1000 + delay,
                     text=text.replace("\n", r"\N"),
                 )
             )
