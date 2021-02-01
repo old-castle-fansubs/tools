@@ -300,7 +300,7 @@ def create_chapters_file(chapters: T.Iterable[Chapter]) -> T.Optional[Path]:
 def change_crc(path: Path, checksum: int) -> None:
     tmp_path = Path("tmp.dat")
     status = subprocess.run(
-        ["crcmanip", "patch", path, tmp_path, "%08x" % checksum]
+        ["crcmanip", "patch", path, "-o", tmp_path, "%08x" % checksum]
     )
     if status.returncode != 0:
         raise RuntimeError("Error while patching CRC")
