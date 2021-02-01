@@ -654,10 +654,12 @@ def main() -> None:
                 idx, IoWrapper(sub_file_handle), invert=args.invert
             )
             if args.output_dir:
-                image.save(
+                image_path = (
                     args.output_dir.expanduser()
                     / f"{sub_path.stem}-{i+1:04d}.png"
                 )
+                image_path.parent.mkdir(exist_ok=True, parents=True)
+                image.save(image_path)
             text = pytesseract.image_to_string(image)
 
             ass_file.events.append(
