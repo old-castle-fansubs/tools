@@ -21,6 +21,9 @@ def parse_args() -> argparse.Namespace:
     subs_parser.add_argument(
         "-o", "--output", help="output file", type=Path, default="-"
     )
+    subs_parser.add_argument(
+        "--track-num", "-t", help="subs track number", type=int
+    )
 
     attachments_parser = subparsers.add_parser("attachments")
     attachments_parser.add_argument("source", type=Path)
@@ -68,14 +71,16 @@ def extract_attachment(source_path: Path, attachment_id: int) -> bytes:
     return result.stdout
 
 
-def extract_subtitles(source_path: Path, output_path: Path) -> str:
+def extract_subtitles(
+    source_path: Path, output_path: Path, track_num: T.Optional[int]
+) -> str:
     info = get_info(source_path)
     ass_track_ids = [
         track["id"] for track in info["tracks"] if track["type"] == "subtitles"
     ]
     if not ass_track_ids:
         raise ExtractionError(f'no subtitles found in "{source_path}"')
-    ass = extract_track(source_path, ass_track_ids[0]).decode()
+    ass = extract_track(source_path, ass_track_ids[track_num]).decode()
     if str(output_path) == "-":
         print(ass, end="")
     else:
@@ -114,7 +119,9 @@ def main() -> None:
     check_deps()
     args = parse_args()
     if args.mode == "subs":
-        extract_subtitles(args.source.expanduser(), args.output.expanduser())
+        extract_subtitles(
+            args.source.expanduser(), args.output.expanduser(), args.track_num
+        )
     else:
         extract_attachments(args.source.expanduser(), args.output.expanduser())
 
