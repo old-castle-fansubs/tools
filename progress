@@ -126,9 +126,10 @@ def print_progress_step(
         idx = ep - anime.min_episode
         if anime.get_state(ep, category, step):
             print(colorama.Style.BRIGHT + colorama.Fore.GREEN, end="")
+            print("\N{BLACK SQUARE}", end="")
         else:
-            print(colorama.Style.BRIGHT + colorama.Fore.BLACK, end="")
-        print("\N{BLACK SQUARE}", end="")
+            print(colorama.Fore.BLACK, end="")
+            print("\N{WHITE SQUARE}", end="")
         if idx % 5 == 4:
             print(" ", end="")
         if idx % 10 == 9:
