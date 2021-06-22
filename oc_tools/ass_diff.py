@@ -1,34 +1,17 @@
-#!/usr/bin/env python3.8
-import argparse
-import difflib
-import re
-import sys
 import typing as T
 from dataclasses import dataclass
-from pathlib import Path
-
-import git  # python3 -m pip install --user gitpython
 
 from bubblesub.fmt.ass.event import AssEvent
 from bubblesub.fmt.ass.file import AssFile
 from bubblesub.fmt.ass.reader import read_ass
 
-
-def first(source: T.Iterable[T.Any]) -> T.Any:
-    return next(source, None)
-
-
-def last(source: T.Iterable[T.Any]) -> T.Any:
-    item = None
-    for item in source:
-        pass
-    return item
+from oc_tools.util import first, last
 
 
 class BaseChange:
     @property
     def sort_key(self) -> T.Any:
-        raise NotImplementedError('not implemented')
+        raise NotImplementedError("not implemented")
 
 
 @dataclass
@@ -96,18 +79,6 @@ class LineAddedChange(BaseChange):
         )
 
 
-def parse_args() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("commit", default="HEAD", nargs="?")
-    parser.add_argument(
-        "-n",
-        action="store_true",
-        dest="keep_newlines",
-        help="don't convert newlines"
-    )
-    return parser.parse_args()
-
-
 def collect_changes(a_ass: AssFile, b_ass: AssFile) -> T.Iterable[BaseChange]:
     handled_b_events: T.Set[AssEvent] = set()
 
@@ -159,51 +130,8 @@ def collect_changes(a_ass: AssFile, b_ass: AssFile) -> T.Iterable[BaseChange]:
         event1b = first(e for e in sorted_a_events if e.start >= event2.start)
         yield LineAddedChange(event1a, event1b, event2)
 
-
-def ass_postprocess(ass_file: AssFile, args: argparse.Namespace) -> None:
-    if not args.keep_newlines:
+def postprocess_ass(ass_file: AssFile, keep_newlines: bool) -> None:
+    if not keep_newlines:
         for event in ass_file.events:
             event.text = event.text.replace(r"\N", " ")
 
-
-def main() -> None:
-    args = parse_args()
-    repo = git.Repo(search_parent_directories=True)
-
-    commit1 = repo.commit(args.commit + "^")
-    commit2 = repo.commit(args.commit)
-    diff_index = commit1.diff(commit2)
-
-    for diff_item in diff_index.iter_change_type("M"):
-        if not all(
-            [
-                diff_item.a_blob.path.endswith(".ass"),
-                diff_item.b_blob.path.endswith(".ass"),
-            ]
-        ):
-            continue
-
-        ep_number = int(
-            re.search(r'(\d+)', Path(diff_item.a_path).name).group(1)
-        )
-        header = f'Episode {ep_number:02d}'
-        print(header)
-        print('-' * len(header))
-        print()
-
-        a_blob = diff_item.a_blob.data_stream.read().decode("utf-8")
-        b_blob = diff_item.b_blob.data_stream.read().decode("utf-8")
-
-        a_ass = read_ass(a_blob)
-        b_ass = read_ass(b_blob)
-        ass_postprocess(a_ass, args)
-        ass_postprocess(b_ass, args)
-
-        for change in sorted(
-            collect_changes(a_ass, b_ass), key=lambda change: change.sort_key
-        ):
-            print(change)
-
-
-if __name__ == "__main__":
-    main()
