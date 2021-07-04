@@ -22,7 +22,7 @@ def parse_args() -> argparse.Namespace:
         "-o", "--output", help="output file", type=Path, default="-"
     )
     subs_parser.add_argument(
-        "--track-num", "-t", help="subs track number", type=int
+        "--track-num", "-t", help="subs track number", type=int, default=0
     )
 
     attachments_parser = subparsers.add_parser("attachments")
