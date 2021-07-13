@@ -98,12 +98,12 @@ def get_step_title(step: str, category: str) -> str:
 
 
 def print_progress_header(anime: AnimeProgress, longest_title: int) -> None:
-    print(anime.title.ljust(longest_title), end=" ")
+    title = anime.title.ljust(longest_title)
     for episode in range(anime.min_episode, anime.max_episode + 1):
         idx = episode - anime.min_episode
         if idx % 10 == 0:
-            print(str(episode).ljust(12), end=" ")
-    print()
+            title += " " + str(episode).ljust(12)
+    print(title.strip())
 
 
 def print_progress_step(
