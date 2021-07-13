@@ -138,6 +138,10 @@ def print_progress_step(
 
 
 def print_progress(progress: list[AnimeProgress]) -> None:
+    if not progress:
+        print('no ongoing progress to report')
+        return
+
     longest_title = max(
         max((len(anime.title), len(get_step_title(step, category))))
         for anime in progress
@@ -157,7 +161,8 @@ def print_progress(progress: list[AnimeProgress]) -> None:
 
 def main() -> None:
     progress = list(get_progress())
-    print_progress([anime for anime in progress if not anime.finished])
+    ongoing_progress = [anime for anime in progress if not anime.finished]
+    print_progress(ongoing_progress)
 
 
 if __name__ == "__main__":
