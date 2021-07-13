@@ -9,49 +9,49 @@ import xdg
 DATA_PATH = Path(xdg.XDG_CONFIG_HOME) / "oc-progress.txt"
 
 
-def uniq(source: T.Iterable[T.Any]) -> T.Iterable[T.Any]:
+def uniq(source: T.Iterable[T.Any]) -> list[T.Any]:
     return list(OrderedDict.fromkeys(source))
 
 
-def split(source: str, delim: str) -> T.List[str]:
+def split(source: str, delim: str) -> list[str]:
     return list(map(str.strip, source.split(delim)))
 
 
 class AnimeProgress:
     def __init__(
-        self, title: str, episodes: T.Dict[T.Tuple[int, str, str], bool]
+        self, title: str, episodes: dict[tuple[int, str, str], bool]
     ) -> None:
         self.title = title
         self.episodes = episodes
 
         self.min_episode = min(
-            ep for ep, category, state in self.episodes.keys()
+            episode for episode, category, state in self.episodes.keys()
         )
         self.max_episode = max(
-            ep for ep, category, state in self.episodes.keys()
+            episode for episode, category, state in self.episodes.keys()
         )
         self.categories = uniq(
-            category for ep, category, state in self.episodes.keys()
+            category for episode, category, state in self.episodes.keys()
         )
         self.category_steps = {
             category: uniq(
                 state
-                for ep, ep_category, state in self.episodes.keys()
-                if category == ep_category
+                for episode, episode_category, state in self.episodes.keys()
+                if category == episode_category
             )
             for category in self.categories
         }
 
         self.finished = all(
-            self.get_state(ep, category="release", step="Release")
-            for ep in range(self.min_episode, self.max_episode + 1)
+            self.get_state(episode, category="release", step="Release")
+            for episode in range(self.min_episode, self.max_episode + 1)
         )
 
-    def get_category_steps(self, category: str) -> T.Optional[T.List[str]]:
-        return self.category_steps.get(category)
+    def get_category_steps(self, category: str) -> list[str]:
+        return self.category_steps.get(category) or []
 
-    def get_state(self, ep: int, category: str, step: str) -> bool:
-        return self.episodes.get((ep, category, step), None)
+    def get_state(self, episode: int, category: str, step: str) -> T.Optional[bool]:
+        return self.episodes.get((episode, category, step), None)
 
 
 def get_progress() -> T.Iterable[AnimeProgress]:
@@ -65,7 +65,7 @@ def get_progress() -> T.Iterable[AnimeProgress]:
         while lines:
             title = lines.pop(0)
 
-            category_steps_map: T.Dict[str, T.List[str]] = {}
+            category_steps_map: dict[str, list[str]] = {}
 
             while lines and "|" not in lines[0]:
                 category_line = lines.pop(0)
@@ -73,18 +73,18 @@ def get_progress() -> T.Iterable[AnimeProgress]:
                 category_steps_map[category] = split(steps_line, ",")
             category_steps_map["release"] = ["Release"]
 
-            episode_states: T.Dict[T.Tuple[int, str, str]] = {}
+            episode_states: dict[tuple[int, str, str], bool] = {}
             while lines and "|" in lines[0]:
                 state_line = lines.pop(0)
 
-                ep, *category_state_lines = split(state_line, "|")
-                ep = int(ep)
+                episode_str, *category_state_lines = split(state_line, "|")
+                episode = int(episode_str)
 
                 for (category, category_steps), category_state in zip(
                     category_steps_map.items(), category_state_lines
                 ):
                     for step, char in zip(category_steps, category_state):
-                        episode_states[ep, category, step] = (
+                        episode_states[episode, category, step] = (
                             char.lower() == "x"
                         )
 
@@ -99,10 +99,10 @@ def get_step_title(step: str, category: str) -> str:
 
 def print_progress_header(anime: AnimeProgress, longest_title: int) -> None:
     print(anime.title.ljust(longest_title), end=" ")
-    for ep in range(anime.min_episode, anime.max_episode + 1):
-        idx = ep - anime.min_episode
+    for episode in range(anime.min_episode, anime.max_episode + 1):
+        idx = episode - anime.min_episode
         if idx % 10 == 0:
-            print(str(ep).ljust(12), end=" ")
+            print(str(episode).ljust(12), end=" ")
     print()
 
 
@@ -122,9 +122,9 @@ def print_progress_step(
         end=" ",
     )
 
-    for ep in range(anime.min_episode, anime.max_episode + 1):
-        idx = ep - anime.min_episode
-        if anime.get_state(ep, category, step):
+    for episode in range(anime.min_episode, anime.max_episode + 1):
+        idx = episode - anime.min_episode
+        if anime.get_state(episode, category, step):
             print(colorama.Style.BRIGHT + colorama.Fore.GREEN, end="")
             print("\N{BLACK SQUARE}", end="")
         else:
@@ -137,7 +137,7 @@ def print_progress_step(
     print(colorama.Style.RESET_ALL)
 
 
-def print_progress(progress: T.Iterable[AnimeProgress]) -> None:
+def print_progress(progress: list[AnimeProgress]) -> None:
     longest_title = max(
         max((len(anime.title), len(get_step_title(step, category))))
         for anime in progress
