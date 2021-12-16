@@ -7,10 +7,7 @@ from pathlib import Path
 from subprocess import PIPE, run
 
 import lxml.etree
-from bubblesub.fmt.ass.event import AssEvent
-from bubblesub.fmt.ass.file import AssFile
-from bubblesub.fmt.ass.reader import read_ass
-from bubblesub.fmt.ass.writer import write_ass
+from ass_parser import AssEvent, AssFile, read_ass, write_ass
 from bubblesub.util import str_to_ms
 
 VIDEO_EXTENSIONS = {".mkv", ".mp4"}
@@ -79,11 +76,11 @@ def main() -> None:
             raise RuntimeError(f'File "{source}" does not exist.')
 
         if source.suffix in VIDEO_EXTENSIONS:
-            ass_file.meta.update(
+            ass_file.script_info.update(
                 {"Video File": str(source), "Audio File": str(source)}
             )
-            if ass_file.meta.get("PlayResY") is None:
-                ass_file.meta.set("PlayResY", 288)
+            if ass_file.script_info.get("PlayResY") is None:
+                ass_file.script_info.set("PlayResY", 288)
 
             if args.copy_chapters:
                 for event in extract_chapters(source):
@@ -91,11 +88,11 @@ def main() -> None:
 
         elif source.suffix in ASS_EXTENSIONS:
             other_ass_file = read_ass(source)
-            ass_file.meta.update(other_ass_file.meta.items())
+            ass_file.script_info.update(other_ass_file.script_info.items())
 
             if args.copy_events:
                 for event in other_ass_file.events:
-                    if event.style.lower().startswith(
+                    if event.style_name.lower().startswith(
                         ("opening", "ending", "op", "ed", "lyrics", "karaoke")
                     ) or event.actor.startswith("["):
                         ass_file.events.append(copy(event))
