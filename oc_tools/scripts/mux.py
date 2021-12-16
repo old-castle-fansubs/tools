@@ -524,10 +524,10 @@ def main() -> None:
 
     with header("Collecting chapters"):
         chapters = list(get_chapters(subs, video))
-        for chapter in chapters:
+        for i, chapter in enumerate(chapters):
             flags = "-H"[chapter.is_hidden]
             print(
-                f"{flags} "
+                f"{i:2d}. {flags} "
                 f"{ms_to_str(chapter.start_time)}.."
                 f"{ms_to_str(chapter.end_time)}"
             )
