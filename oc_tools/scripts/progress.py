@@ -1,7 +1,8 @@
 #!/usr/bin/env python3.9
-import typing as T
 from collections import OrderedDict
+from collections.abc import Iterable
 from pathlib import Path
+from typing import Any
 
 import colorama
 import xdg
@@ -9,7 +10,7 @@ import xdg
 DATA_PATH = Path(xdg.XDG_CONFIG_HOME) / "oc-progress.txt"
 
 
-def uniq(source: T.Iterable[T.Any]) -> list[T.Any]:
+def uniq(source: Iterable[Any]) -> list[Any]:
     return list(OrderedDict.fromkeys(source))
 
 
@@ -50,11 +51,11 @@ class AnimeProgress:
     def get_category_steps(self, category: str) -> list[str]:
         return self.category_steps.get(category) or []
 
-    def get_state(self, episode: int, category: str, step: str) -> T.Optional[bool]:
+    def get_state(self, episode: int, category: str, step: str) -> bool | None:
         return self.episodes.get((episode, category, step), None)
 
 
-def get_progress() -> T.Iterable[AnimeProgress]:
+def get_progress() -> Iterable[AnimeProgress]:
     with DATA_PATH.open("r", encoding="utf-8") as handle:
         lines = [
             line
@@ -139,7 +140,7 @@ def print_progress_step(
 
 def print_progress(progress: list[AnimeProgress]) -> None:
     if not progress:
-        print('no ongoing progress to report')
+        print("no ongoing progress to report")
         return
 
     longest_title = max(

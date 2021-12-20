@@ -1,7 +1,6 @@
 #!/usr/bin/python3
 import argparse
 import subprocess
-import typing as T
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -22,7 +21,7 @@ class CropArea:
         return CropArea(*map(int, source.split(":")))
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("ep")
     parser.add_argument("--test", action="store_true")
@@ -51,9 +50,8 @@ def get_video_length(path: Path) -> float:
             "csv=p=0",
         ],
         stdout=subprocess.PIPE,
+        check=True,
     )
-    if status.returncode != 0:
-        raise RuntimeError("Error while getting video length")
     return float(status.stdout.decode())
 
 
@@ -61,14 +59,14 @@ def encode(
     input_path: Path,
     output_path: Path,
     target_size: int,
-    crop: T.Optional[CropArea],
+    crop: CropArea | None,
     test: bool,
 ) -> None:
     audio_bitrate = 128
     video_length = get_video_length(input_path)
     video_bitrate = target_size / B_TO_KBIT / video_length - audio_bitrate
 
-    args = ["ffmpeg", "-y", "-i", input_path]
+    args = ["ffmpeg", "-y", "-i", str(input_path)]
     if crop:
         args += ["-vf", f"crop={crop.w}:{crop.h}:{crop.x}:{crop.y}"]
     if test:
@@ -83,7 +81,7 @@ def encode(
     args += ["/dev/null"]
     subprocess.run(args, check=True)
 
-    args = ["ffmpeg", "-y", "-i", input_path]
+    args = ["ffmpeg", "-y", "-i", str(input_path)]
     if crop:
         args += ["-vf", f"crop={crop.w}:{crop.h}:{crop.x}:{crop.y}"]
     if test:
@@ -95,7 +93,7 @@ def encode(
     args += ["-pass", "2"]
     args += ["-c:a", "aac"]
     args += ["-b:a", f"{audio_bitrate:0f}k"]
-    args += [output_path]
+    args += [str(output_path)]
     subprocess.run(args, check=True)
 
     for path in list(Path(".").iterdir()):

@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 import argparse
-import sys
 from pathlib import Path
 
-from bubblesub.fmt.ass.reader import read_ass
-from bubblesub.fmt.ass.util import ass_to_plaintext
+from ass_parser import read_ass
+from ass_tag_parser import ass_to_plaintext
+
+from oc_tools.util import wrap_exceptions
 
 
 def parse_args() -> argparse.Namespace:
@@ -13,6 +14,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+@wrap_exceptions
 def main() -> None:
     args = parse_args()
 
@@ -27,7 +29,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except RuntimeError as ex:
-        print(ex, file=sys.stderr)
+    main()

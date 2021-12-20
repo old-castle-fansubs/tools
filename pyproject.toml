@@ -1,0 +1,48 @@
+[tool.poetry]
+name = "oc_tools"
+version = "0.1"
+description = "OldCastle tools"
+authors = ["Marcin Kurczewski <dash@wind.garden>"]
+repository = "https://github.com/bubblesub/ass_lint"
+packages = [
+    { include = "oc_tools" },
+]
+
+[tool.poetry.dependencies]
+python = ">=3.9"
+colorama = "*"
+gitpython = "*"
+humanfriendly = "*"
+fonttools = "*"
+xdg = "*"
+ass-parser = "^1.0"
+ass-tag-parser = "^2.4"
+pysubs2 = "^1.3.1"
+
+[tool.poetry.scripts]
+oc-ass-diff-dir = 'oc_tools.scripts.ass_diff_dir:main'
+oc-ass-diff-files = 'oc_tools.scripts.ass_diff_files:main'
+oc-ass-diff-git = 'oc_tools.scripts.ass_diff_git:main'
+oc-create-ass = 'oc_tools.scripts.create_ass:main'
+oc-detect-crop = 'oc_tools.scripts.detect_crop:main'
+oc-encode = 'oc_tools.scripts.encode:main'
+oc-extract-ass = 'oc_tools.scripts.extract_ass:main'
+oc-mux = 'oc_tools.scripts.mux:main'
+oc-plain-text = 'oc_tools.scripts.plain_text:main'
+oc-prepare-featured-image = 'oc_tools.scripts.prepare_featured_image:main'
+oc-prepare-release = 'oc_tools.scripts.prepare_release:main'
+oc-progress = 'oc_tools.scripts.progress:main'
+oc-strip-cc = 'oc_tools.scripts.strip_cc:main'
+oc-vobsub = 'oc_tools.scripts.vobsub:main'
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 79
+py36 = true
+
+[tool.isort]
+multi_line_output = 3
+include_trailing_comma = true

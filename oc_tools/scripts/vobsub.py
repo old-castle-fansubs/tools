@@ -4,7 +4,6 @@ import io
 import logging
 import re
 import struct
-import typing as T
 from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
@@ -13,9 +12,7 @@ import numpy as np
 import PIL.Image
 import PIL.ImageOps
 import pytesseract
-from bubblesub.fmt.ass.event import AssEvent
-from bubblesub.fmt.ass.file import AssFile
-from bubblesub.fmt.ass.writer import write_ass
+from ass_parser import AssEvent, AssFile, write_ass
 
 logger = logging.getLogger(__file__)
 
@@ -47,22 +44,22 @@ class SubsIndexItem:
 
 @dataclass
 class SubsIndex:
-    width: T.Optional[int] = None
-    height: T.Optional[int] = None
-    origin_x: T.Optional[int] = None
-    origin_y: T.Optional[int] = None
-    scale_x: T.Optional[float] = None
-    scale_y: T.Optional[float] = None
-    alpha: T.Optional[float] = None
-    smooth: T.Optional[bool] = None
-    fade_in: T.Optional[int] = None
-    fade_out: T.Optional[int] = None
-    align: ... = None
-    time_offset: T.Optional[int] = None
-    forced_subs: T.Optional[bool] = None
-    palette: T.Optional[T.List[Color]] = field(default_factory=list)
-    lang_idx: T.Optional[int] = None
-    items: T.Optional[T.List[SubsIndexItem]] = field(default_factory=list)
+    width: int | None = None
+    height: int | None = None
+    origin_x: int | None = None
+    origin_y: int | None = None
+    scale_x: float | None = None
+    scale_y: float | None = None
+    alpha: float | None = None
+    smooth: bool | None = None
+    fade_in: int | None = None
+    fade_out: int | None = None
+    # align: ... = None
+    time_offset: int | None = None
+    forced_subs: bool | None = None
+    palette: list[Color] | None = field(default_factory=list)
+    lang_idx: int | None = None
+    items: list[SubsIndexItem] | None = field(default_factory=list)
 
 
 def vobsub_bool(value: str) -> bool:
@@ -286,7 +283,7 @@ def decode_vobsub_line(
 
 def decode_vobsub_picture(
     idx: SubsIndex, handle: IoWrapper, invert: bool
-) -> T.Tuple[PIL.Image.Image, int]:
+) -> tuple[PIL.Image.Image, int]:
     ofs = handle.tell()
     ctrl_ofs = -1
     next_ofs = 0

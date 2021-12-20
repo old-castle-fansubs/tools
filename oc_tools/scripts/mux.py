@@ -2,13 +2,13 @@
 import argparse
 import contextlib
 import itertools
-import re
 import shelve
 import subprocess
-import typing as T
 import zlib
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import IO, Any, cast
 
 import ass_tag_parser
 import fontTools.ttLib as font_tools
@@ -20,7 +20,7 @@ def ms_to_str(ms: int) -> str:
     return pysubs2.time.ms_to_str(ms, fractions=True)
 
 
-def pairwise(source: T.Iterable[T.Any]) -> T.Iterable[T.Any]:
+def pairwise(source: Iterable[Any]) -> Iterable[Any]:
     "s -> (s0,s1), (s1,s2), (s2, s3), ..."
     a, b = itertools.tee(source)
     next(b, None)
@@ -54,7 +54,7 @@ def get_iso_639_2_lang_code(lang: str) -> str:
     raise ValueError(f"unknown language {lang}")
 
 
-def single(source: T.Iterable[T.Any]) -> T.Any:
+def single(source: Iterable[Any]) -> Any:
     unique = set(source)
     if len(unique) != 1:
         raise ValueError("expected unique value")
@@ -64,9 +64,9 @@ def single(source: T.Iterable[T.Any]) -> T.Any:
 @dataclass
 class Subtitles:
     path: Path
-    info: T.Dict[str, str]
-    styles: T.Dict[str, T.Any]
-    lines: T.List[T.Any]
+    info: dict[str, str]
+    styles: dict[str, Any]
+    lines: list[Any]
 
     @staticmethod
     def from_path(path: Path) -> "Subtitles":
@@ -107,6 +107,7 @@ class Video:
                 "default=noprint_wrappers=1:nokey=1",
             ],
             stdout=subprocess.PIPE,
+            check=True,
         )
         if status.returncode != 0:
             raise RuntimeError("Error while getting video length")
@@ -134,19 +135,19 @@ class Chapter:
     start_time: int
     end_time: int
     is_hidden: bool
-    titles: T.List[ChapterTitle]
+    titles: list[ChapterTitle]
 
 
 @dataclass
 class Font:
-    names: T.List[str]
+    names: list[str]
     is_bold: bool
     is_italic: bool
 
     @staticmethod
     def from_path(font_path: Path) -> "Font":
         font = font_tools.TTFont(font_path)
-        names: T.List[str] = []
+        names: list[str] = []
 
         for record in font["name"].names:
             if (
@@ -177,9 +178,9 @@ def parse_args() -> argparse.Namespace:
 def mux(
     title: str,
     video: Video,
-    subs: T.List[Subtitles],
-    chapters_path: T.Optional[Path],
-    font_paths: T.Set[Path],
+    subs: list[Subtitles],
+    chapters_path: Path | None,
+    font_paths: set[Path],
     output_path: Path,
 ) -> None:
     mux_args = [
@@ -207,7 +208,7 @@ def mux(
             ]
         )
 
-    status = subprocess.run(mux_args)
+    status = subprocess.run(mux_args, check=True)
     if status.returncode != 0:
         raise RuntimeError("Error while muxing")
 
@@ -220,8 +221,8 @@ def get_group_name(subs: Subtitles) -> str:
     return subs.info.get("Group", "OldCastle").replace(" & ", "-")
 
 
-def get_chapters(subs: T.List[Subtitles], video: Video) -> T.Iterable[Chapter]:
-    lines: T.Dict[int, T.Dict[str, str]] = {}
+def get_chapters(subs: list[Subtitles], video: Video) -> Iterable[Chapter]:
+    lines: dict[int, dict[str, str]] = {}
     for sub in subs:
         for line in sub.lines:
             if line.name == "[chapter]":
@@ -256,7 +257,7 @@ def get_chapters(subs: T.List[Subtitles], video: Video) -> T.Iterable[Chapter]:
         )
 
 
-def create_chapters_file(chapters: T.Iterable[Chapter]) -> T.Optional[Path]:
+def create_chapters_file(chapters: Iterable[Chapter]) -> Path | None:
     chapters = list(chapters)
     if not chapters:
         return None
@@ -300,7 +301,8 @@ def create_chapters_file(chapters: T.Iterable[Chapter]) -> T.Optional[Path]:
 def change_crc(path: Path, checksum: int) -> None:
     tmp_path = Path("tmp.dat")
     status = subprocess.run(
-        ["crcmanip", "patch", path, "-o", tmp_path, "%08x" % checksum]
+        ["crcmanip", "patch", path, "-o", tmp_path, "%08x" % checksum],
+        check=True,
     )
     if status.returncode != 0:
         raise RuntimeError("Error while patching CRC")
@@ -308,7 +310,7 @@ def change_crc(path: Path, checksum: int) -> None:
     tmp_path.rename(path)
 
 
-def bold_to_weight(value: T.Union[int, bool]) -> int:
+def bold_to_weight(value: int | bool) -> int:
     if value is True or value == 1:
         return 700
     if value is False or value == 0:
@@ -317,7 +319,7 @@ def bold_to_weight(value: T.Union[int, bool]) -> int:
     return value
 
 
-def get_used_font_styles(subs: Subtitles) -> T.Iterable[StyleInfo]:
+def get_used_font_styles(subs: Subtitles) -> Iterable[StyleInfo]:
     style_name_to_style_info = {
         style_name: StyleInfo(
             style.fontname, bold_to_weight(style.bold), style.italic
@@ -333,7 +335,7 @@ def get_used_font_styles(subs: Subtitles) -> T.Iterable[StyleInfo]:
         style_info = style_name_to_style_info[line.style]
         try:
             used_font_styles.add(style_info)
-        except KeyError as ex:
+        except KeyError:
             print(f"Invalid style at line #{i + 1}: {line.style}")
 
         weight = style_info.weight
@@ -349,10 +351,15 @@ def get_used_font_styles(subs: Subtitles) -> T.Iterable[StyleInfo]:
             if isinstance(ass_item, ass_tag_parser.AssTagBold):
                 if ass_item.enabled is not None:
                     weight = 700 if ass_item.enabled else 400
-                else:
+                elif ass_item.weight is not None:
                     weight = ass_item.weight
+                else:
+                    weight = style_info.weight
             elif isinstance(ass_item, ass_tag_parser.AssTagItalic):
-                is_italic = ass_item.enabled
+                if ass_item.enabled is not None:
+                    is_italic = ass_item.enabled
+                else:
+                    is_italic = style_info.is_italic
             elif (
                 isinstance(ass_item, ass_tag_parser.AssTagFontName)
                 and ass_item.name is not None
@@ -370,12 +377,12 @@ def get_used_font_styles(subs: Subtitles) -> T.Iterable[StyleInfo]:
     return used_font_styles
 
 
-def get_fonts(font_paths: T.Iterable[Path]) -> T.Dict[Path, Font]:
+def get_fonts(font_paths: Iterable[Path]) -> dict[Path, Font]:
     with shelve.open(str(SHELVE_PATH)) as cache:
-        fonts = {}
+        fonts: dict[Path, Font] = {}
         for font_path in font_paths:
             cache_key = "font-" + str(font_path.resolve())
-            font = cache.get(cache_key, None)
+            font = cast(Font, cache.get(cache_key, None))
             if not font:
                 try:
                     font = Font.from_path(font_path)
@@ -387,11 +394,11 @@ def get_fonts(font_paths: T.Iterable[Path]) -> T.Dict[Path, Font]:
 
 
 def filter_fonts(
-    used_font_styles: T.Iterable[StyleInfo], font_paths: T.Iterable[Path]
-) -> T.Set[Path]:
+    used_font_styles: Iterable[StyleInfo], font_paths: Iterable[Path]
+) -> set[Path]:
     fonts = get_fonts(font_paths)
 
-    ret: T.Set[Path] = set()
+    ret: set[Path] = set()
     for style in sorted(used_font_styles, key=lambda s: s.family):
         candidates = []
         for font_path, font in fonts.items():
@@ -417,7 +424,7 @@ def filter_fonts(
     return ret
 
 
-def get_incremental_crc32(handle: T.IO[bytes]) -> int:
+def get_incremental_crc32(handle: IO[bytes]) -> int:
     ret = 0
     chunk = handle.read(1024)
     if len(chunk):
@@ -432,7 +439,7 @@ def get_incremental_crc32(handle: T.IO[bytes]) -> int:
     return ret
 
 
-def get_checksum(version: int, episode: int, paths: T.Iterable[Path]) -> int:
+def get_checksum(version: int, episode: int, paths: Iterable[Path]) -> int:
     checksum = 0
     for path in sorted(paths):
         with path.open("rb") as handle:
@@ -448,15 +455,15 @@ def get_checksum(version: int, episode: int, paths: T.Iterable[Path]) -> int:
 
 
 @contextlib.contextmanager
-def header(title: str) -> T.Any:
+def header(title: str) -> Any:
     print(title)
     yield
     print()
     print()
 
 
-def get_subs_paths(episode: str) -> T.List[Path]:
-    found: T.List[Path] = []
+def get_subs_paths(episode: str) -> list[Path]:
+    found: list[Path] = []
     for path in Path().iterdir():
         if (
             path.stem == episode
@@ -476,7 +483,7 @@ def get_video_path(episode: str) -> Path:
     raise RuntimeError("No video file found")
 
 
-def sort_subs(subs: T.Iterable[Subtitles]) -> T.Iterable[Subtitles]:
+def sort_subs(subs: Iterable[Subtitles]) -> list[Subtitles]:
     lang_priorities = ["eng", "pol"]
 
     other_subs = list(
@@ -501,13 +508,13 @@ def main() -> None:
     episode = args.ep
     version = args.version
 
-    subs = list(map(Subtitles.from_path, get_subs_paths(episode)))
+    subs = [Subtitles.from_path(path) for path in get_subs_paths(episode)]
     video = Video.from_path(get_video_path(episode))
 
     subs = sort_subs(subs)
 
     with header("Collecting fonts"):
-        available_font_paths: T.List[Path] = []
+        available_font_paths: list[Path] = []
         for directory in FONT_DIRS:
             if directory.exists():
                 available_font_paths += list(directory.iterdir())
@@ -515,7 +522,7 @@ def main() -> None:
         if not available_font_paths:
             raise RuntimeError("No fonts found")
 
-        used_font_styles: T.List[StyleInfo] = list(
+        used_font_styles: list[StyleInfo] = list(
             sum([list(get_used_font_styles(sub)) for sub in subs], [])
         )
         source_font_paths = filter_fonts(
@@ -542,7 +549,7 @@ def main() -> None:
         title = single(map(get_title, eng_subs if len(eng_subs) else pol_subs))
 
     with header("Computing target checksum"):
-        all_paths: T.Set[Path] = (
+        all_paths: set[Path] = (
             set([sub.path for sub in subs] + [video.path]) | source_font_paths
         )
         if temp_chapters_path:
@@ -555,7 +562,7 @@ def main() -> None:
 
     with header("Muxing"):
         mux(
-            title,
+            str(title),
             video,
             subs,
             temp_chapters_path,

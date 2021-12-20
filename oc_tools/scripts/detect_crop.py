@@ -2,12 +2,15 @@
 import argparse
 import re
 import subprocess
-import typing as T
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, TypeVar
+
+T = TypeVar("T")
 
 
-def most_common(lst: T.Iterable[T.Any]) -> T.Any:
+def most_common(lst: list[T]) -> T:
     return max(set(lst), key=lst.count)
 
 
@@ -22,13 +25,13 @@ class CropArea:
         return hash((self.w, self.h, self.x, self.y))
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("ep")
     return parser.parse_args()
 
 
-def detect_crop_area(path: Path) -> CropArea:
+def detect_crop_area(path: Path) -> Iterable[CropArea]:
     result = subprocess.run(
         [
             "ffmpeg",

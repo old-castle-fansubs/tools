@@ -4,12 +4,11 @@ import re
 import sys
 from pathlib import Path
 
+import ass_tag_parser
 from pysubs2 import SSAFile
 
-import ass_tag_parser
 
-
-def parse_args():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("file", default="-")
     return parser.parse_args()

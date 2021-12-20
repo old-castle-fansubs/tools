@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 import argparse
 import json
-import re
 import sys
-import typing as T
 from pathlib import Path
 from subprocess import PIPE, run
+from typing import Any
+
+from oc_tools.util import wrap_exceptions
 
 
 class ExtractionError(Exception):
@@ -50,7 +51,7 @@ def extract_track(source_path: Path, track_id: int) -> bytes:
     return result.stdout
 
 
-def get_info(source_path: Path) -> T.Any:
+def get_info(source_path: Path) -> Any:
     result = run(["mkvmerge", "-J", str(source_path)], check=True, stdout=PIPE)
     return json.loads(result.stdout.decode())
 
@@ -72,10 +73,10 @@ def extract_attachment(source_path: Path, attachment_id: int) -> bytes:
 
 
 def extract_subtitles(
-    source_path: Path, output_path: Path, track_num: T.Optional[int]
-) -> str:
+    source_path: Path, output_path: Path, track_num: int
+) -> None:
     info = get_info(source_path)
-    ass_track_ids = [
+    ass_track_ids: list[int] = [
         track["id"] for track in info["tracks"] if track["type"] == "subtitles"
     ]
     if not ass_track_ids:
@@ -88,7 +89,7 @@ def extract_subtitles(
         output_path.write_text(ass)
 
 
-def extract_attachments(source_path: Path, output_dir: Path) -> str:
+def extract_attachments(source_path: Path, output_dir: Path) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     info = get_info(source_path)
     if not info["attachments"]:
@@ -112,9 +113,10 @@ def check_deps() -> None:
         except FileNotFoundError:
             raise ExtractionError(
                 "please install mkvtoolnix before running this script"
-            )
+            ) from None
 
 
+@wrap_exceptions
 def main() -> None:
     check_deps()
     args = parse_args()
@@ -127,7 +129,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except ExtractionError as ex:
-        print(str(ex).capitalize() + ".", file=sys.stderr)
+    main()

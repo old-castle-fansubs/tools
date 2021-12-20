@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 import argparse
 import sys
-import typing as T
+from collections.abc import Iterable
 from copy import copy
 from pathlib import Path
 from subprocess import PIPE, run
 
 import lxml.etree
 from ass_parser import AssEvent, AssFile, read_ass, write_ass
-from bubblesub.util import str_to_ms
+
+from oc_tools.util import str_to_ms, wrap_exceptions
 
 VIDEO_EXTENSIONS = {".mkv", ".mp4"}
 ASS_EXTENSIONS = {".ass"}
@@ -41,8 +42,10 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def extract_chapters(source_path: Path) -> T.Iterable[AssEvent]:
-    out = run(["mkvextract", source_path, "chapters", "-"], stdout=PIPE).stdout
+def extract_chapters(source_path: Path) -> Iterable[AssEvent]:
+    out = run(
+        ["mkvextract", source_path, "chapters", "-"], stdout=PIPE, check=True
+    ).stdout
     if not out:
         return
 
@@ -57,7 +60,7 @@ def extract_chapters(source_path: Path) -> T.Iterable[AssEvent]:
     for chapter_atom in xml.xpath("//ChapterAtom"):
         title = chapter_atom.xpath("string(.//ChapterString)")
         start = chapter_atom.xpath("string(.//ChapterTimeStart)")
-        end = chapter_atom.xpath("string(.//ChapterTimeEnd)")
+        _end = chapter_atom.xpath("string(.//ChapterTimeEnd)")
         yield AssEvent(
             start=str_to_ms(start),
             end=str_to_ms(start),
@@ -67,6 +70,7 @@ def extract_chapters(source_path: Path) -> T.Iterable[AssEvent]:
         )
 
 
+@wrap_exceptions
 def main() -> None:
     args = parse_args()
 
@@ -80,7 +84,7 @@ def main() -> None:
                 {"Video File": str(source), "Audio File": str(source)}
             )
             if ass_file.script_info.get("PlayResY") is None:
-                ass_file.script_info.set("PlayResY", 288)
+                ass_file.script_info["PlayResY"] = "288"
 
             if args.copy_chapters:
                 for event in extract_chapters(source):
@@ -109,7 +113,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except RuntimeError as ex:
-        print(ex, file=sys.stderr)
+    main()

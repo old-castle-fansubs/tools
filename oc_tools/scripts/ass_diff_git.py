@@ -4,12 +4,13 @@ import re
 from pathlib import Path
 
 import git
-from bubblesub.fmt.ass.reader import read_ass
+from ass_parser import read_ass
 
 from oc_tools import ass_diff
+from oc_tools.util import wrap_exceptions
 
 
-def parse_args() -> None:
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("commit", default="HEAD", nargs="?")
     parser.add_argument(
@@ -21,6 +22,7 @@ def parse_args() -> None:
     return parser.parse_args()
 
 
+@wrap_exceptions
 def main() -> None:
     args = parse_args()
     repo = git.Repo(search_parent_directories=True)
@@ -38,9 +40,13 @@ def main() -> None:
         ):
             continue
 
-        ep_number = int(
-            re.search(r"(\d+)", Path(diff_item.a_path).name).group(1)
-        )
+        path = Path(diff_item.a_path).name
+        match = re.search(r"(\d+)", path)
+        if not match:
+            raise ValueError(
+                "Cannot infer episode number from filename {path.name}"
+            )
+        ep_number = int(match.group(1))
         header = f"Episode {ep_number:02d}"
         print(header)
         print("-" * len(header))

@@ -3,12 +3,12 @@ import argparse
 import sys
 from pathlib import Path
 
-from bubblesub.fmt.ass.reader import read_ass
+from ass_parser import read_ass
 
 from oc_tools import ass_diff
 
 
-def parse_args() -> None:
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("dir1", type=Path)
     parser.add_argument("dir2", type=Path)

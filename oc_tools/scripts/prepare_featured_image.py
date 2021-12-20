@@ -4,8 +4,10 @@ import sys
 from pathlib import Path
 from subprocess import run
 
+from oc_tools.util import wrap_exceptions
+
 TARGET_HOST = "oc"
-TARGET_DIR = "srv/website/data/"
+TARGET_DIR = "srv/website/mnt/data/"
 
 
 def parse_args() -> argparse.Namespace:
@@ -14,6 +16,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+@wrap_exceptions
 def main() -> None:
     args = parse_args()
 
@@ -42,8 +45,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except RuntimeError as ex:
-        print(ex, file=sys.stderr)
-
+    main()
