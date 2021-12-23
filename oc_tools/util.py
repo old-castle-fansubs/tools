@@ -1,6 +1,7 @@
 import re
 import sys
 from collections.abc import Callable, Iterable, Iterator
+from functools import wraps
 from typing import Any, TypeVar
 
 T = TypeVar("T")
@@ -18,9 +19,9 @@ def last(source: Iterator[T]) -> T | None:
 
 
 def wrap_exceptions(func: Callable[[], None]) -> Callable[[], None]:
-    def wrapped():
+    def wrapped(*args, **kwargs):
         try:
-            func()
+            func(*args, **kwargs)
         except Exception as ex:
             print(ex, file=sys.stderr)
 
