@@ -34,6 +34,7 @@ def main() -> None:
         path2 = args.dir2 / path1.name
         if not path2.exists():
             print(f"{path1}: {path2} does not exist", file=sys.stderr)
+            continue
 
         a_ass = read_ass(path1)
         b_ass = read_ass(path2)
